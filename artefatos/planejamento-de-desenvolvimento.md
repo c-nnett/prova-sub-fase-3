@@ -4,302 +4,188 @@ Sistema de agendamento e gerenciamento de serviços de beleza e bem-estar (Tech 
 
 Documentos relacionados: [Modelagem de Dados](modelagem-de-dados.md) · [Arquitetura do Sistema](arquitetura-do-sistema.md)
 
+> **Revisão de 20/11/2026.** O plano original (02/11 a 29/11, cerca de 84h) não foi executado. Até hoje só existem o esqueleto do projeto Spring Boot, os perfis `dev` e `production` e um Dockerfile, todos de 02/11. Restam 10 dias e cerca de 34h. Por isso, este plano corta o escopo antes de começar, em vez de cortar durante o desenvolvimento (seção 2).
+
 ## 1. Resumo
 
 | Item | Definição |
 |---|---|
-| Período | 02/11/2026 (segunda) a 29/11/2026 (domingo) |
+| Período | 20/11/2026 (sexta, feriado) a 29/11/2026 (domingo) |
 | Peso | 60% da nota de todas as disciplinas da fase |
-| Dedicação | Cerca de 2h por dia útil e 5 a 6h por dia de fim de semana |
-| Capacidade total | Cerca de 84h (20 dias úteis e 8 dias de fim de semana) |
+| Dedicação | Cerca de 2h por dia útil e 5,5h por dia de fim de semana |
+| Capacidade total | Cerca de 34h: 6 dias úteis (12h) e 4 dias de fim de semana (22h) |
+| Trabalho planejado | Cerca de 32,5h. Restam 1,5h de reserva em 29/11 |
 | Entrega | PDF com link do GitHub, Documentação Técnica e Relatório Técnico |
 
-Os feriados de 02/11 e 20/11 mantêm a carga de dia útil. Qualquer hora extra nessas datas vira folga para o cronograma.
+A folga é pequena demais. **Cada hora extra (feriado de 20/11 e noites de dias úteis) vira reserva**, e é a única forma de recuperar os itens adiados da seção 2.2.
 
-## 2. Marcos
+### 1.1 Ponto de partida
+
+| Item | Situação |
+|---|---|
+| Projeto Spring Boot 4.1 com Java 21 e Maven | Pronto |
+| Perfis `dev` e `production` | Pronto |
+| Dockerfile | Com erros: imagens com Java 17, nome do `.jar` sem extensão e estágio `runtime-base` inexistente |
+| Repositório no GitHub | Existe. Falta confirmar que está público |
+| `docker-compose.yml`, CI, Flyway, Swagger, testes | Não iniciado |
+
+## 2. Decisões de escopo
+
+### 2.1 Simplificações aplicadas desde já
+
+Estas trocas substituem decisões da [Arquitetura do Sistema](arquitetura-do-sistema.md). Todas atendem ao enunciado e devem aparecer no Relatório Técnico como decisões conscientes.
+
+| Antes | Agora | Motivo |
+|---|---|---|
+| OAuth2 e sincronização com a API do Google Calendar | Feed iCalendar (`.ics`) por profissional e por cliente, com URL secreta | Google Calendar e Outlook assinam o mesmo feed. Atende aos dois sem OAuth, sem tokens e sem projeto no Google Cloud |
+| Outbox com job e `SKIP LOCKED` | E-mail enviado depois do commit (`@TransactionalEventListener` + `@Async`) e job `@Scheduled` para lembretes | Menos tabelas e jobs, com o mesmo comportamento visível |
+| AWS ECS com Terraform, ALB, CloudFront e RDS | Docker Compose local e plataforma em nuvem gratuita (Render, Railway ou similar) com PostgreSQL gerenciado | O enunciado aceita "uma opção gratuita". Sem custo e sem infraestrutura como código |
+| Fotos em S3/MinIO | Fotos como URLs no cadastro | Tira o MinIO e o gateway de armazenamento |
+| Busca com `pg_trgm` e raio de distância | Consultas com JPA Specification: nome, cidade, bairro, serviço, nota, faixa de preço e disponibilidade | Atende ao item 5 sem extensão do banco nem geolocalização |
+| Login com JWT e papéis | Usuário identificado pelo cabeçalho `X-Usuario-Id` e papel informado no cadastro | Autenticação não é critério de avaliação. Registrar a limitação no Relatório |
+
+### 2.2 Itens adiados (entram somente se sobrar tempo, nesta ordem)
+
+1. Autenticação com JWT e Spring Security.
+2. Deploy na AWS ECS, mesmo sem Terraform.
+3. Upload de fotos para S3/MinIO.
+
+## 3. Marcos
 
 | Marco | Data | Resultado esperado |
 |---|---|---|
-| **M1** | 08/11 | CI completo, autenticação e cadastro de estabelecimentos funcionando |
-| **M2** | 15/11 | Perfil de profissionais, agendamento sem conflito e painel prontos |
-| **M3** | 22/11 | As 7 funcionalidades do enunciado completas |
-| **Congelamento** | 27/11 | Sistema na AWS. A partir daqui, somente correções |
-| **M4** | 28/11 | Documentação, Relatório e PDF final prontos |
-| **Entrega** | 29/11 | PDF revisado e enviado |
+| **M0** | 20/11 | Projeto sobe com Docker Compose, e as regras ArchUnit rodam |
+| **M1** | 22/11 | CI completo e funcionalidades 1 e 2 prontas, com horários livres e primeira feature BDD |
+| **M2** | 25/11 | Funcionalidades 3 e 6 prontas: agendamento, painel, confirmações e lembretes |
+| **M3 e congelamento** | 28/11 | As 7 funcionalidades prontas, carga medida e sistema na nuvem. A partir daqui, somente correções |
+| **Entrega** | 29/11 | PDF revisado e enviado **até as 14h** |
 
 ```mermaid
 gantt
-    title Cronograma até 29/11/2026
+    title Cronograma de 20/11 a 29/11/2026
     dateFormat YYYY-MM-DD
     axisFormat %d/%m
     section Fundação
-    Projeto, CI e qualidade        :a1, 2026-11-02, 2d
-    Identidade e JWT               :a2, 2026-11-04, 2d
+    Projeto, Compose e ArchUnit     :a1, 2026-11-20, 1d
+    CI e qualidade                  :a2, 2026-11-21, 1d
     section Funcionalidades
-    Estabelecimentos               :b1, 2026-11-06, 3d
-    Profissionais e disponibilidade:b2, 2026-11-09, 4d
-    Agendamentos e painel          :b3, 2026-11-13, 3d
-    Notificações                   :b4, 2026-11-16, 2d
-    Avaliações                     :b5, 2026-11-18, 2d
-    Busca e filtros                :b6, 2026-11-20, 2d
-    Google Calendar                :b7, 2026-11-21, 2d
+    Estabelecimentos                :b1, 2026-11-21, 1d
+    Profissionais e horários livres :b2, 2026-11-22, 1d
+    Agendamentos e painel           :b3, 2026-11-23, 2d
+    Notificações                    :b4, 2026-11-25, 1d
+    Avaliações                      :b5, 2026-11-26, 1d
+    Busca e filtros                 :b6, 2026-11-27, 1d
+    Calendário (.ics)               :b7, 2026-11-28, 1d
     section Qualidade e deploy
-    Carga e performance            :c1, 2026-11-23, 2d
-    Deploy na AWS                  :c2, 2026-11-25, 3d
+    Carga e concorrência            :c1, 2026-11-28, 1d
+    Deploy na nuvem                 :c2, 2026-11-28, 1d
     section Entrega
-    Documentação e Relatório       :d1, 2026-11-28, 1d
-    Revisão e envio                :d2, 2026-11-29, 1d
+    Documentação, Relatório e envio :d1, 2026-11-29, 1d
 ```
 
-## 3. Definição de pronto
+## 4. Definição de pronto
 
 Uma tarefa de funcionalidade só termina quando:
 
-- [ ] Os testes foram escritos antes do código (commit `test:` seguido de `feat:`).
+- [ ] Os testes de `domain` e `application` foram escritos antes do código (commit `test:` seguido de `feat:`).
 - [ ] A cobertura de `domain` e `application` está em 80% ou mais.
-- [ ] O endpoint está anotado no Swagger, com exemplos e códigos de erro.
+- [ ] O endpoint tem teste de controller (MockMvc) e aparece no Swagger com descrição e códigos de erro.
 - [ ] O CI está verde e sem novos problemas críticos no Sonar.
-- [ ] O fluxo principal tem cenário BDD.
 
-**Rotina diária de 5 minutos:** anotar em `docs/diario.md` os desafios e soluções do dia. Essas notas viram a base do Relatório Técnico.
+BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliação.
 
-## 4. Metas por dia
+**Rotina diária de 5 minutos:** anotar em `docs/diario.md` os desafios e soluções do dia. Essas notas viram a base do Relatório Técnico, que precisa ser escrito em poucas horas no dia 29.
 
-### Semana 1: fundação e estabelecimentos (02/11 a 08/11)
+## 5. Metas por dia
 
-#### Seg 02/11 (2h): projeto iniciado
+#### Sex 20/11 (2h, feriado): fundação. Marco M0
 
-- [ ] Criar repositório público no GitHub e projeto Spring Boot com Java 21 e Maven.
-- [ ] Criar `docker-compose.yml` com PostgreSQL, Mailpit e MinIO.
-- [ ] Criar a estrutura de pacotes dos módulos.
+- [ ] Corrigir o Dockerfile: Java 21 nas duas imagens, nome do `.jar` e estágios.
+- [ ] Criar `docker-compose.yml` com PostgreSQL, Mailpit e a aplicação.
+- [ ] Adicionar Flyway, Actuator, springdoc-openapi, Testcontainers, ArchUnit e Cucumber ao `pom.xml`.
+- [ ] Criar a estrutura de pacotes e as regras ArchUnit da arquitetura.
+- [ ] Confirmar que o repositório está público e integrar a branch na `master`.
 
-**Pronto quando:** `docker compose up` e a aplicação sobem, e `/actuator/health` responde `UP`.
+**Pronto quando:** `docker compose up` sobe a aplicação, `/actuator/health` responde `UP`, e os testes ArchUnit passam.
 
-#### Ter 03/11 (2h): qualidade automatizada
+#### Sáb 21/11 (5,5h): CI e estabelecimentos
 
-- [ ] Criar workflow do GitHub Actions com build e testes.
-- [ ] Configurar JaCoCo, Checkstyle, SpotBugs e SonarCloud.
-- [ ] Escrever as regras ArchUnit da arquitetura.
+- [ ] Criar workflow do GitHub Actions com build, testes, JaCoCo e SonarCloud (1,5h).
+- [ ] Em TDD: `Estabelecimento`, `HorarioFuncionamento` e `Servico`, com fotos como URLs, e os casos de uso de cadastro e atualização (1,5h).
+- [ ] Criar migração `V1`, adaptadores JPA e teste de repositório com Testcontainers (1h).
+- [ ] Publicar os endpoints de estabelecimento, horários e serviços, com testes de controller (1,5h).
 
-**Pronto quando:** o CI roda em cada push, e uma violação de camada proposital faz o build falhar.
+**Pronto quando:** o CI roda em cada push com análise do Sonar, e o gestor cadastra estabelecimento, horários, serviços e fotos pela API. **Funcionalidade 1 pronta.**
 
-#### Qua 04/11 (2h): domínio de usuário
+#### Dom 22/11 (5,5h): profissionais e horários livres. Marco M1
 
-- [ ] Em TDD: entidade `Usuario` e caso de uso de registro.
-- [ ] Criar migração `V1` e adaptador de persistência.
-- [ ] Publicar `POST /auth/registro`.
+- [ ] Em TDD: `Profissional`, especialidades, tarifas por serviço e jornada de trabalho (1,5h).
+- [ ] Criar migração `V2`, adaptadores e endpoints de perfil (1h).
+- [ ] Em TDD: `AgendaProfissional`, cruzando jornada, funcionamento, bloqueios e agendamentos. Cobrir almoço, serviço que não cabe no fim da jornada e dia fechado (1,5h).
+- [ ] Publicar `GET /profissionais/{id}/horarios-livres` (0,5h).
+- [ ] Configurar Cucumber com RestAssured e escrever a feature de cadastro de estabelecimento (1h).
 
-**Pronto quando:** o registro funciona de ponta a ponta e recusa e-mail duplicado.
+**Pronto quando:** os itens do **M1** estão atendidos, e a primeira feature roda no CI. **Funcionalidade 2 pronta.**
 
-#### Qui 05/11 (2h): autenticação
+#### Seg 23/11 (2h): criar agendamento
 
-- [ ] Publicar `POST /auth/login` com JWT.
-- [ ] Configurar Spring Security e papéis.
-- [ ] Configurar o Swagger com autenticação Bearer.
+- [ ] Em TDD: `Agendamento` e a máquina de status, com transições válidas e inválidas.
+- [ ] Criar migração `V3`, com a restrição `EXCLUDE` contra conflito de horário.
+- [ ] Implementar `CriarAgendamentoUseCase`, com tradução do erro `23P01`, e publicar `POST /agendamentos` e `GET /agendamentos/meus`.
 
-**Pronto quando:** uma rota protegida responde 401 sem token e 403 com papel errado.
+**Pronto quando:** um agendamento em horário ocupado é recusado com 409.
 
-#### Sex 06/11 (2h): domínio de estabelecimento
+#### Ter 24/11 (2h): gestão e painel
 
-- [ ] Em TDD: `Estabelecimento`, `HorarioFuncionamento`, `Servico`.
-- [ ] Em TDD: casos de uso de cadastro e atualização, com verificação de posse.
+- [ ] Implementar confirmar, cancelar, reagendar, concluir e registrar não comparecimento, com histórico.
+- [ ] Publicar o painel do estabelecimento: agenda filtrada por data, profissional e status, e resumo do dia.
 
-**Pronto quando:** os testes unitários passam, sem Spring e sem banco.
+**Pronto quando:** toda transição fora do diagrama da modelagem é recusada, e o painel mostra a agenda atualizada. **Funcionalidade 6 pronta.**
 
-#### Sáb 07/11 (5,5h): API de estabelecimentos
+#### Qua 25/11 (2h): confirmações e lembretes. Marco M2
 
-- [ ] Criar migração `V2` e adaptadores JPA.
-- [ ] Publicar endpoints de estabelecimento, horários e serviços.
-- [ ] Configurar Testcontainers e cobrir os repositórios.
+- [ ] Criar `NotificacaoGateway` com adaptador SMTP (Mailpit local).
+- [ ] Enviar confirmação para cliente e profissional depois do commit da reserva, do cancelamento e do reagendamento.
+- [ ] Criar job `@Scheduled` de lembretes para 24h antes, com marcação de envio para não repetir.
+- [ ] Testar com GreenMail.
 
-**Pronto quando:** o gestor cadastra estabelecimento, horários e serviços pela API, e os testes integrados rodam no CI.
+**Pronto quando:** uma reserva gera e-mails visíveis no Mailpit, e um agendamento cancelado não recebe lembrete. **Funcionalidade 3 pronta.**
 
-#### Dom 08/11 (5,5h): fotos e BDD. Marco M1
+#### Qui 26/11 (2h): avaliações
 
-- [ ] Criar `ArmazenamentoFotosGateway` com adaptador MinIO/S3 e upload de fotos.
-- [ ] Configurar Cucumber com RestAssured.
-- [ ] Escrever a primeira feature: cadastro de estabelecimento.
-- [ ] Criar o README com instruções de execução.
-- [ ] Revisar o marco e ajustar o cronograma.
+- [ ] Em TDD: `Avaliacao` e o caso de uso de avaliar. Recusar nota fora de 1 a 5, agendamento não concluído e cliente diferente.
+- [ ] Criar migração `V4`, endpoints de criar e listar e atualização da nota média na mesma transação.
+- [ ] Escrever a feature BDD de avaliação.
 
-**Pronto quando:** os itens do **M1** estão atendidos e a primeira feature roda no CI.
+**Pronto quando:** a nota média muda após uma avaliação, e uma segunda avaliação do mesmo agendamento é recusada. **Funcionalidade 4 pronta.**
 
-### Semana 2: profissionais e agendamento (09/11 a 15/11)
+#### Sex 27/11 (2h): busca e filtros
 
-#### Seg 09/11 (2h): domínio de profissional
+- [ ] Criar migração `V5` com índices.
+- [ ] Publicar `GET /busca/estabelecimentos` com nome, cidade, bairro, serviço, nota mínima, faixa de preço e disponibilidade em uma data, com paginação.
 
-- [ ] Em TDD: `Profissional`, `Especialidade` e tarifas por serviço.
-- [ ] Em TDD: casos de uso de cadastro e atualização de perfil.
+**Pronto quando:** os filtros funcionam combinados, e a resposta é paginada. **Funcionalidade 5 pronta.**
 
-**Pronto quando:** a regra de tarifa padrão e a posse pelo gestor têm testes passando.
+#### Sáb 28/11 (5,5h): calendário, carga e nuvem. Marco M3 e congelamento
 
-#### Ter 10/11 (2h): API de profissional
-
-- [ ] Criar migração `V3` e adaptadores.
-- [ ] Publicar endpoints de perfil, especialidades e serviços.
-
-**Pronto quando:** o perfil completo é criado e consultado pela API.
-
-#### Qua 11/11 (2h): cálculo de horários livres
-
-- [ ] Em TDD: `AgendaProfissional`, cruzando disponibilidade, funcionamento, bloqueios e agendamentos.
-- [ ] Cobrir casos de borda: intervalo de almoço, serviço que não cabe no fim da jornada, dia fechado, fuso.
-
-**Pronto quando:** os casos de borda passam em testes unitários puros.
-
-#### Qui 12/11 (2h): API de disponibilidade
-
-- [ ] Criar migração `V4` e adaptadores.
-- [ ] Publicar endpoints de jornada e bloqueios.
-- [ ] Publicar `GET /profissionais/{id}/horarios-livres`.
-
-**Pronto quando:** um bloqueio criado some da lista de horários livres.
-
-#### Sex 13/11 (2h): domínio de agendamento
-
-- [ ] Em TDD: `Agendamento` e a máquina de status.
-- [ ] Testar transições válidas e inválidas.
-
-**Pronto quando:** toda transição fora do diagrama da modelagem é recusada.
-
-#### Sáb 14/11 (5,5h): criar agendamento
-
-- [ ] Criar migração `V5`, incluindo a restrição de conflito.
-- [ ] Implementar `CriarAgendamentoUseCase` e o adaptador, com tradução do erro `23P01`.
-- [ ] Publicar `POST /agendamentos` e `GET /agendamentos/meus`.
-- [ ] Criar teste de concorrência com Testcontainers.
-
-**Pronto quando:** em N reservas simultâneas no mesmo horário, exatamente uma é aceita.
-
-#### Dom 15/11 (5,5h): gestão e painel. Marco M2
-
-- [ ] Implementar confirmar, cancelar, reagendar, concluir e registrar não comparecimento.
-- [ ] Publicar endpoints do painel: agenda filtrada e resumo.
-- [ ] Escrever features BDD de agendamento e painel.
-- [ ] Revisar o marco e ajustar o cronograma.
-
-**Pronto quando:** os itens do **M2** estão atendidos e o histórico registra todas as alterações.
-
-### Semana 3: notificações, avaliações, busca e calendário (16/11 a 22/11)
-
-#### Seg 16/11 (2h): confirmações
-
-- [ ] Criar migração `V6`, `PublicadorEventos` e gravação na outbox.
-- [ ] Criar `NotificacaoGateway` com adaptador SMTP.
-- [ ] Criar job de envio com `SKIP LOCKED`.
-
-**Pronto quando:** uma reserva gera e-mails para cliente e profissional, visíveis no Mailpit.
-
-#### Ter 17/11 (2h): lembretes
-
-- [ ] Agendar lembretes para 24 horas antes do início.
-- [ ] Cancelar ou recriar lembretes em cancelamentos e reagendamentos.
-- [ ] Cobrir as novas tentativas e o status `FALHA`.
-
-**Pronto quando:** testes integrados provam o envio na hora certa e a ausência de lembrete após cancelar.
-
-#### Qua 18/11 (2h): domínio de avaliação
-
-- [ ] Em TDD: `Avaliacao` e o caso de uso de avaliar.
-- [ ] Testar notas fora de 1 a 5, agendamento não concluído e outro cliente.
-
-**Pronto quando:** todas as recusas têm testes passando.
-
-#### Qui 19/11 (2h): API de avaliações
-
-- [ ] Criar migração `V7` e adaptadores.
-- [ ] Publicar endpoints de criar e listar avaliações.
-- [ ] Atualizar as notas médias na mesma transação.
-- [ ] Escrever feature BDD de avaliação.
-
-**Pronto quando:** a nota média muda após uma avaliação, e uma segunda avaliação é recusada.
-
-#### Sex 20/11 (2h, feriado): busca básica
-
-- [ ] Criar migração `V8` com índices.
-- [ ] Publicar `GET /busca/estabelecimentos` com nome, serviço e nota mínima.
-
-**Pronto quando:** uma busca com erro de digitação no nome encontra o estabelecimento, e a resposta é paginada.
-
-#### Sáb 21/11 (5,5h): filtros avançados e OAuth2
-
-- [ ] Adicionar cidade, bairro, raio, categoria, faixa de preço e disponibilidade.
-- [ ] Criar projeto no Google Cloud e tela de consentimento em modo de teste.
-- [ ] Criar migração `V9`, fluxo de autorização, callback e cifragem de tokens.
-
-**Pronto quando:** os filtros funcionam combinados, e uma conta real autoriza a integração em `localhost`.
-
-#### Dom 22/11 (5,5h): sincronização. Marco M3
-
-- [ ] Criar `CalendarioGateway` e o adaptador do Google.
-- [ ] Criar job que cria, atualiza e remove eventos.
-- [ ] Cobrir sucesso, erro e token revogado com WireMock.
-- [ ] Conferir as 7 funcionalidades com o enunciado.
-
-**Pronto quando:** uma reserva real aparece no Google Calendar e some ao ser cancelada. Os itens do **M3** estão atendidos.
-
-### Semana 4: qualidade, deploy e entrega (23/11 a 29/11)
-
-#### Seg 23/11 (2h): primeira medição de carga
-
-- [ ] Criar massa de dados para os testes.
-- [ ] Escrever os quatro cenários Gatling da arquitetura.
-- [ ] Rodar localmente e guardar o relatório.
-
-**Pronto quando:** há relatório com p95 e erros de cada cenário.
-
-#### Ter 24/11 (2h): ajustes de performance
-
-- [ ] Analisar as consultas lentas com `EXPLAIN ANALYZE`.
-- [ ] Ajustar índices, N+1 e o pool de conexões.
-- [ ] Repetir a medição e registrar antes e depois.
-
-**Pronto quando:** as metas são atingidas ou a diferença está explicada no diário.
-
-#### Qua 25/11 (2h): infraestrutura base
-
-- [ ] Criar Dockerfile de produção e perfil `aws`.
-- [ ] Configurar o alerta de orçamento da AWS **antes** de criar qualquer recurso.
-- [ ] Criar Terraform de rede, RDS, ECR e S3.
-
-**Pronto quando:** `terraform apply` termina, e o RDS aceita conexão somente de dentro da VPC.
-
-#### Qui 26/11 (2h): aplicação no ECS
-
-- [ ] Criar Terraform de ECS Fargate, ALB, CloudFront, Secrets Manager e CloudWatch.
-- [ ] Publicar a imagem no ECR e criar a etapa de deploy com OIDC.
-- [ ] Registrar o domínio do CloudFront como redirect URI no Google.
-
-**Pronto quando:** um merge na `main` publica a nova versão e o Swagger abre pelo endereço HTTPS.
-
-#### Sex 27/11 (2h): validação na nuvem. Congelamento
-
-- [ ] Testar o fluxo completo na AWS: reserva, e-mail, Google Calendar e avaliação.
-- [ ] Fechar lacunas de cobertura e problemas do Sonar.
+- [ ] Criar `CalendarioGateway` e publicar o feed `.ics` com token secreto para profissional e cliente. Testar a assinatura no Google Calendar (1,5h).
+- [ ] Escrever a feature BDD de agendamento (0,5h).
+- [ ] Criar teste de concorrência com Testcontainers e um cenário Gatling de reservas simultâneas e outro de busca. Guardar os relatórios (1,5h).
+- [ ] Publicar na plataforma gratuita com o perfil `production` e PostgreSQL gerenciado (2h).
 - [ ] Parar de incluir funcionalidades.
 
-**Pronto quando:** o fluxo completo passa na AWS, e a cobertura e o quality gate estão aprovados.
+**Pronto quando:** em N reservas simultâneas no mesmo horário, exatamente uma é aceita, e o Swagger abre pelo endereço público. **Funcionalidade 7 pronta e os itens do M3 atendidos.**
 
-#### Sáb 28/11 (5,5h): documentação e Relatório. Marco M4
+#### Dom 29/11 (5,5h): documentação, Relatório e envio
 
-- [ ] Rodar a carga na AWS e capturar evidências.
-- [ ] Gerar Javadoc e revisar o Swagger.
-- [ ] Escrever o Relatório Técnico: tecnologias, desafios, soluções, Clean Architecture e qualidade.
-- [ ] Montar o PDF final com o link do GitHub, a Documentação e o Relatório.
-- [ ] Testar o README em um clone limpo.
+- [ ] Gerar o Javadoc e revisar o Swagger (0,5h).
+- [ ] Escrever a Documentação Técnica e o Relatório Técnico a partir do diário: tecnologias, desafios, soluções, Clean Architecture, qualidade e as decisões da seção 2 (2,5h).
+- [ ] Testar o README em um clone limpo e abrir o GitHub em janela anônima (0,5h).
+- [ ] Montar o PDF, conferir com a seção 6 e **enviar até as 14h** (0,5h).
 
-**Pronto quando:** o PDF está completo e pronto para envio.
+**Pronto quando:** o portal confirma o envio. As horas restantes (1,5h) ficam para imprevistos.
 
-#### Dom 29/11 (5,5h de reserva): revisão e envio
-
-- [ ] Reautorizar o Google, se o token de teste tiver expirado.
-- [ ] Conferir o PDF com a lista da seção 5.
-- [ ] Abrir o link do GitHub em janela anônima para confirmar o acesso.
-- [ ] **Enviar o PDF cedo, sem deixar para o fim do dia.**
-
-**Pronto quando:** o portal confirma o envio. As horas restantes ficam para imprevistos.
-
-## 5. Lista de conferência da entrega
+## 6. Lista de conferência da entrega
 
 **PDF**
 
@@ -311,45 +197,43 @@ Uma tarefa de funcionalidade só termina quando:
 
 | Critério | Evidência | Meta em |
 |---|---|---|
-| Clean Architecture | Pacotes, regras ArchUnit, Relatório | 03/11 em diante |
-| TDD e cobertura | Histórico de commits, relatório JaCoCo | 04/11 em diante |
-| Testes integrados e análise estática | Testcontainers, SonarCloud | 07/11 em diante |
-| Controllers, CI e BDD | Features Cucumber, execuções no Actions | 08/11 em diante |
-| Performance e carga | Relatórios Gatling | 24/11 |
-| Deploy local e em nuvem | Docker Compose, ECS | 02/11 e 27/11 |
+| Clean Architecture | Pacotes, regras ArchUnit, Relatório | 20/11 em diante |
+| TDD e cobertura | Histórico de commits, relatório JaCoCo | 21/11 em diante |
+| Testes integrados e análise estática | Testcontainers, SonarCloud | 21/11 em diante |
+| Controllers, CI e BDD | Testes MockMvc, features Cucumber, execuções no Actions | 22/11 em diante |
+| Performance e carga | Teste de concorrência e relatórios Gatling | 28/11 |
+| Deploy local e em nuvem | Docker Compose, plataforma gratuita | 20/11 e 28/11 |
 
 **Funcionalidades**
 
 | Funcionalidade | Concluída em |
 |---|---|
-| 1. Cadastro de estabelecimentos | 08/11 |
-| 2. Perfil de profissionais | 12/11 |
-| 3. Agendamento, confirmações e lembretes | 17/11 |
-| 4. Avaliações e comentários | 19/11 |
-| 5. Busca e filtragem | 21/11 |
-| 6. Gerenciamento de agendamentos | 15/11 |
-| 7. Integração com calendários | 22/11 |
+| 1. Cadastro de estabelecimentos | 21/11 |
+| 2. Perfil de profissionais | 22/11 |
+| 3. Agendamento, confirmações e lembretes | 25/11 |
+| 4. Avaliações e comentários | 26/11 |
+| 5. Busca e filtragem | 27/11 |
+| 6. Gerenciamento de agendamentos | 24/11 |
+| 7. Integração com calendários | 28/11 |
 
-## 6. Riscos
+## 7. Riscos
 
 | Risco | Impacto | Resposta |
 |---|---|---|
-| Atraso acumulado com apenas 2h nos dias úteis | Alto | Revisar a cada marco, usar a ordem de corte e os feriados como folga |
-| Deploy na AWS em poucas horas (25 e 26/11) | Alto | 28 e 29/11 servem de reserva. Se necessário, aplicar o corte 1 |
-| Custo inesperado na AWS | Médio | Alerta de orçamento, RDS de menor porte, sem NAT Gateway e `terraform destroy` depois da correção |
-| Refresh token do Google expira em 7 dias com o app em modo de teste | Médio | Cadastrar contas como usuários de teste e reautorizar antes da demonstração |
-| Google exige redirect URI em HTTPS fora de `localhost` | Médio | CloudFront à frente do ALB. Se não der tempo, demonstrar o OAuth2 em `localhost` e registrar a limitação no Relatório |
-| Amazon SES em sandbox só envia para endereços verificados | Baixo | Verificar os endereços usados na demonstração |
-| Testes de carga no computador local limitam a medição | Médio | Registrar o ambiente usado e repetir na AWS em 28/11 |
-| Horário limite do envio desconhecido | Alto | Confirmar no portal da FIAP e enviar cedo em 29/11 |
+| Atraso em qualquer dia útil, com só 2h e sem folga entre os dias | Alto | Usar a noite seguinte ou o fim de semana. Se o atraso passar de meio dia, aplicar a seção 8 |
+| Plataforma gratuita com limitações (hibernação, memória, banco expirado) | Médio | Testar o deploy cedo no dia 28. Registrar as limitações no Relatório. Docker Compose local continua como evidência |
+| Spring Boot 4 com bibliotecas ainda incompatíveis (springdoc, Cucumber) | Médio | Validar as dependências em 20/11. Se falhar, voltar para Spring Boot 3.5 no mesmo dia |
+| Relatório escrito com pressa no último dia | Médio | Manter o diário todos os dias |
+| Horário limite do envio desconhecido | Alto | Confirmar no portal da FIAP e enviar até as 14h de 29/11 |
 
-## 7. Ordem de corte de escopo
+## 8. Ordem de corte de escopo
 
-Se um marco atrasar mais de um dia, aplique os cortes nesta ordem:
+Se um marco atrasar mais de meio dia, aplique os cortes nesta ordem:
 
-1. **Terraform completo** → provisionamento manual documentado com capturas de tela.
-2. **Busca por distância** → busca por cidade e bairro.
-3. **Sincronização de edições no Google** → apenas criar e cancelar eventos.
-4. **Fotos em S3** → cadastro somente de URLs.
+1. **Filtro por disponibilidade na busca** → busca pelos demais filtros.
+2. **Reagendamento como operação própria** → cancelar e criar um novo agendamento.
+3. **Feed `.ics` do cliente** → feed apenas do profissional.
+4. **Segundo cenário Gatling (busca)** → somente reservas simultâneas.
+5. **Deploy na nuvem** → somente Docker Compose local, com a limitação registrada no Relatório.
 
-Os itens avaliados diretamente não entram no corte: Clean Architecture, TDD, testes integrados, BDD, CI, carga e deploy.
+Os itens avaliados diretamente não entram no corte: Clean Architecture, TDD, testes integrados, BDD, CI, ao menos um teste de carga e deploy local.
