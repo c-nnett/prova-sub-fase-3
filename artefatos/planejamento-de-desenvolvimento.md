@@ -104,7 +104,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 - [x] Criar `docker-compose.yml` com PostgreSQL, Mailpit e a aplicação.
 - [x] Adicionar Flyway, Actuator, springdoc-openapi, Testcontainers, ArchUnit e Cucumber ao `pom.xml`.
 - [x] Criar a estrutura de pacotes e as regras ArchUnit da arquitetura.
-- [ ] Confirmar que o repositório está público e integrar a branch na `master`.
+- [x] Confirmar que o repositório está público e integrar a branch na `master`.
 
 **Pronto quando:** `docker compose up` sobe a aplicação, `/actuator/health` responde `UP`, e os testes ArchUnit passam.
 
