@@ -1,0 +1,8 @@
+# Ignore file específico do agendabeleza-api/Dockerfile (lido pelo BuildKit).
+# Os padrões são relativos ao contexto de build: a raiz do workspace.
+**
+
+!agendabeleza-api/mvnw
+!agendabeleza-api/.mvn/**
+!agendabeleza-api/pom.xml
+!agendabeleza-api/src/**

@@ -1,16 +1,28 @@
-FROM maven:3.9.11-eclipse-temurin-17 AS build
+# syntax=docker/dockerfile:1
 
-WORKDIR /app
+# Contexto de build: raiz do workspace (pasta pai de agendabeleza-api).
+# Exemplo: docker build -f agendabeleza-api/Dockerfile --target production .
 
-COPY ./agendabeleza-api/pom.xml ./agendabeleza-api/pom.xml
+FROM eclipse-temurin:21-jdk-alpine AS build
 
-COPY ./agendabeleza-api/src ./agendabeleza-api/src
+WORKDIR /workspace/agendabeleza-api
+
+COPY ./agendabeleza-api/mvnw ./mvnw
+COPY ./agendabeleza-api/.mvn ./.mvn
+COPY ./agendabeleza-api/pom.xml ./pom.xml
+
+RUN sed -i 's/\r$//' mvnw && chmod +x mvnw
 
 RUN --mount=type=cache,target=/root/.m2 \
-	mvn clean package -f ./agendabeleza-api/pom.xml -Dspring.profiles.active=dev && \
-	cp ./agendabeleza-api/target/agendabeleza-api ./app.jar
+	./mvnw -B dependency:go-offline
 
-FROM amazoncorretto:17-alpine AS runtime
+COPY ./agendabeleza-api/src ./src
+
+RUN --mount=type=cache,target=/root/.m2 \
+	./mvnw -B package -DskipTests && \
+	cp target/agendabeleza-api.jar /workspace/app.jar
+
+FROM eclipse-temurin:21-jre-alpine AS runtime-base
 
 RUN apk add --no-cache \
 	fontconfig \
@@ -25,7 +37,6 @@ RUN addgroup -g 1001 -S appgroup && \
 	adduser -u 1001 -S appuser -G appgroup
 
 WORKDIR /app
-USER appuser
 
 ENV USER_TIMEZONE="America/Sao_Paulo" \
 	TZ=America/Sao_Paulo \
@@ -36,28 +47,32 @@ ENV USER_TIMEZONE="America/Sao_Paulo" \
 	LC_MONETARY=pt_BR.UTF-8 \
 	SPRING_OUTPUT_ANSI_ENABLED=ALWAYS
 
-ENV JAVA_OPTS="-XX:+UseContainerSupport \
-	-XX:MaxRAMPercentage=75.0 \
+ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0 \
 	-XX:+UseG1GC \
 	-XX:+UseStringDeduplication \
-	-Djava.security.egd=file:/dev/./urandom \
 	-Dspring.backgroundpreinitializer.ignore=true \
 	-Dfile.encoding=UTF-8 \
 	-Duser.timezone=America/Sao_Paulo"
 
-FROM runtime-base AS development
+COPY --from=build --chown=appuser:appgroup /workspace/app.jar /app/app.jar
 
-ENV JAVA_OPTS="${JAVA_OPTS} \
-	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000 \
-	--add-opens java.base/java.lang=ALL-UNNAMED \
-	--add-opens java.base/java.util=ALL-UNNAMED \
-	--add-opens java.base/java.lang.reflect=ALL-UNNAMED"
-	
-COPY --from=build --chown=appuser:appgroup /app/app.jar /app/app.jar
+USER appuser
 
-EXPOSE 8080 8000
+EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 	CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
-	
-CMD ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
+
+CMD ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
+
+FROM runtime-base AS development
+
+ENV SPRING_PROFILES_ACTIVE=dev \
+	JAVA_OPTS="${JAVA_OPTS} \
+	-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000"
+
+EXPOSE 8000
+
+FROM runtime-base AS production
+
+ENV SPRING_PROFILES_ACTIVE=production
