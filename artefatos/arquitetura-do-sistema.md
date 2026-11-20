@@ -85,11 +85,16 @@ As dependências sempre apontam para dentro.
 
 ### 4.2 Regras verificadas com ArchUnit
 
-- `domain` não depende de `application`, `adapters` ou `infrastructure`.
+As regras ficam em `src/test/java/br/com/fiap/agendabeleza/api/arquitetura/RegrasArquiteturaTest.java` e rodam a cada build.
+
+- As camadas só dependem para dentro: `infrastructure` → `adapters` → `application` → `domain`.
+- `domain` depende somente de `domain` e da biblioteca padrão do Java.
 - `application` depende somente de `domain` e da biblioteca padrão do Java.
 - `domain` e `application` não importam `org.springframework..`, `jakarta.persistence..` ou `com.google.api..`.
-- Um módulo só acessa outro pelos contratos de `application` ou por eventos, nunca por `adapters` ou tabelas JPA alheias.
+- Um módulo só acessa outro pelos contratos de `application` ou por eventos, nunca por `adapters`, `infrastructure` ou tabelas JPA alheias.
+- `compartilhado` não depende de nenhum módulo de negócio.
 - Controllers não acessam repositórios diretamente.
+- Classes `@Entity` ficam somente em `adapters.out.persistence`.
 
 ### 4.3 Módulos
 
@@ -110,7 +115,7 @@ As dependências sempre apontam para dentro.
 Projeto Maven de módulo único. As fronteiras são garantidas por pacotes e ArchUnit, sem o custo de um build multimódulo.
 
 ```text
-src/main/java/br/com/fiap/agendabeleza/
+src/main/java/br/com/fiap/agendabeleza/api/
 ├── AgendaBelezaApplication.java
 ├── agendamentos/
 │   ├── domain/
