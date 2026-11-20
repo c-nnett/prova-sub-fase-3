@@ -10,6 +10,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ public class Estabelecimento {
 	private final Map<DayOfWeek, HorarioFuncionamento> horarios = new EnumMap<>(DayOfWeek.class);
 
 	private Estabelecimento(UUID id, UUID gestorId) {
-		this.id = id;
+		this.id = obrigatorio(id, "id");
 		this.gestorId = obrigatorio(gestorId, "gestorId");
 		this.ativo = true;
 	}
@@ -49,6 +50,22 @@ public class Estabelecimento {
 			String timezone) {
 		Estabelecimento estabelecimento = new Estabelecimento(UUID.randomUUID(), gestorId);
 		estabelecimento.atualizarDados(nome, descricao, endereco, timezone);
+		return estabelecimento;
+	}
+
+	/** Recria o agregado a partir dos dados gravados, aplicando as mesmas validações do cadastro. */
+	public static Estabelecimento reconstituir(UUID id, UUID gestorId, String nome, String descricao,
+			Endereco endereco, String timezone, boolean ativo, Collection<FotoEstabelecimento> fotos,
+			Collection<HorarioFuncionamento> horarios) {
+		Estabelecimento estabelecimento = new Estabelecimento(id, gestorId);
+		estabelecimento.atualizarDados(nome, descricao, endereco, timezone);
+		estabelecimento.ativo = ativo;
+		estabelecimento.definirHorarios(horarios);
+		if (fotos != null) {
+			fotos.stream()
+					.sorted(Comparator.comparingInt(FotoEstabelecimento::ordem))
+					.forEach(estabelecimento.fotos::add);
+		}
 		return estabelecimento;
 	}
 

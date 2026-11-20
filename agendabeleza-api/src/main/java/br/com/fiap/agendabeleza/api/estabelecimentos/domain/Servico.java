@@ -26,7 +26,7 @@ public class Servico {
 	private boolean ativo;
 
 	private Servico(UUID id, UUID estabelecimentoId) {
-		this.id = id;
+		this.id = obrigatorio(id, "id");
 		this.estabelecimentoId = obrigatorio(estabelecimentoId, "estabelecimentoId");
 	}
 
@@ -34,6 +34,14 @@ public class Servico {
 			int duracaoMinutos, BigDecimal precoBase) {
 		Servico servico = new Servico(UUID.randomUUID(), estabelecimentoId);
 		servico.atualizar(nome, descricao, categoria, duracaoMinutos, precoBase, true);
+		return servico;
+	}
+
+	/** Recria o serviço a partir dos dados gravados, aplicando as mesmas validações do cadastro. */
+	public static Servico reconstituir(UUID id, UUID estabelecimentoId, String nome, String descricao,
+			CategoriaServico categoria, int duracaoMinutos, BigDecimal precoBase, boolean ativo) {
+		Servico servico = new Servico(id, estabelecimentoId);
+		servico.atualizar(nome, descricao, categoria, duracaoMinutos, precoBase, ativo);
 		return servico;
 	}
 
