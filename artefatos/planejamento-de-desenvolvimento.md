@@ -110,7 +110,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 #### Sáb 21/11 (5,5h): CI e estabelecimentos
 
-- [ ] Criar workflow do GitHub Actions com build, testes, JaCoCo e SonarCloud (1,5h).
+- [x] Criar workflow do GitHub Actions com build, testes, JaCoCo e SonarCloud (1,5h).
 - [ ] Em TDD: `Estabelecimento`, `HorarioFuncionamento` e `Servico`, com fotos como URLs, e os casos de uso de cadastro e atualização (1,5h).
 - [ ] Criar migração `V1`, adaptadores JPA e teste de repositório com Testcontainers (1h).
 - [ ] Publicar os endpoints de estabelecimento, horários e serviços, com testes de controller (1,5h).
