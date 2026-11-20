@@ -102,7 +102,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 - [x] Corrigir o Dockerfile: Java 21 nas duas imagens, nome do `.jar` e estágios.
 - [x] Criar `docker-compose.yml` com PostgreSQL, Mailpit e a aplicação.
-- [ ] Adicionar Flyway, Actuator, springdoc-openapi, Testcontainers, ArchUnit e Cucumber ao `pom.xml`.
+- [x] Adicionar Flyway, Actuator, springdoc-openapi, Testcontainers, ArchUnit e Cucumber ao `pom.xml`.
 - [ ] Criar a estrutura de pacotes e as regras ArchUnit da arquitetura.
 - [ ] Confirmar que o repositório está público e integrar a branch na `master`.
 
