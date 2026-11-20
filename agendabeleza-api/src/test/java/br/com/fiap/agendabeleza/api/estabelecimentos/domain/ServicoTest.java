@@ -90,4 +90,25 @@ class ServicoTest {
 				.hasMessage("nome deve ter no máximo 120 caracteres");
 	}
 
+	@Test
+	void reconstituiComOsDadosGravados() {
+		UUID id = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
+
+		Servico servico = Servico.reconstituir(id, ESTABELECIMENTO_ID, "Barba", null,
+				CategoriaServico.BARBA, 30, new BigDecimal("45.00"), false);
+
+		assertThat(servico.id()).isEqualTo(id);
+		assertThat(servico.estabelecimentoId()).isEqualTo(ESTABELECIMENTO_ID);
+		assertThat(servico.categoria()).isEqualTo(CategoriaServico.BARBA);
+		assertThat(servico.precoBase()).isEqualTo(new BigDecimal("45.00"));
+		assertThat(servico.ativo()).isFalse();
+	}
+
+	@Test
+	void reconstituicaoExigeId() {
+		assertThatThrownBy(() -> Servico.reconstituir(null, ESTABELECIMENTO_ID, "Barba", null,
+				CategoriaServico.BARBA, 30, BigDecimal.TEN, true))
+				.hasMessage("id é obrigatório");
+	}
+
 }

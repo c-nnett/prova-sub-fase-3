@@ -247,4 +247,47 @@ class EstabelecimentoTest {
 
 	}
 
+	@Nested
+	class Reconstituicao {
+
+		private final UUID id = UUID.fromString("00000000-0000-0000-0000-0000000000a1");
+		private final FotoEstabelecimento foto = new FotoEstabelecimento(
+				UUID.fromString("00000000-0000-0000-0000-0000000000f1"), "https://cdn.exemplo.com/1.jpg", 1);
+		private final HorarioFuncionamento segunda = new HorarioFuncionamento(
+				DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(18, 0));
+
+		@Test
+		void reconstituiComOsDadosGravados() {
+			Estabelecimento estabelecimento = Estabelecimento.reconstituir(id, GESTOR_ID, "Salão", "Desc",
+					endereco(), "America/Manaus", false, List.of(foto), List.of(segunda));
+
+			assertThat(estabelecimento.id()).isEqualTo(id);
+			assertThat(estabelecimento.gestorId()).isEqualTo(GESTOR_ID);
+			assertThat(estabelecimento.nome()).isEqualTo("Salão");
+			assertThat(estabelecimento.timezone()).isEqualTo(ZoneId.of("America/Manaus"));
+			assertThat(estabelecimento.ativo()).isFalse();
+			assertThat(estabelecimento.fotos()).containsExactly(foto);
+			assertThat(estabelecimento.horarios()).containsExactly(segunda);
+		}
+
+		@Test
+		void ordenaFotosPelaOrdemGravada() {
+			FotoEstabelecimento segundaFoto = new FotoEstabelecimento(UUID.randomUUID(), "https://cdn.exemplo.com/2.jpg", 2);
+
+			Estabelecimento estabelecimento = Estabelecimento.reconstituir(id, GESTOR_ID, "Salão", null,
+					endereco(), null, true, List.of(segundaFoto, foto), null);
+
+			assertThat(estabelecimento.fotos()).containsExactly(foto, segundaFoto);
+			assertThat(estabelecimento.horarios()).isEmpty();
+		}
+
+		@Test
+		void recusaSemId() {
+			assertThatThrownBy(() -> Estabelecimento.reconstituir(null, GESTOR_ID, "Salão", null,
+					endereco(), null, true, List.of(), List.of()))
+					.hasMessage("id é obrigatório");
+		}
+
+	}
+
 }
