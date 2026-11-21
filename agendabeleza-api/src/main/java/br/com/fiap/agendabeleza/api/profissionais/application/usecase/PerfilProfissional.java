@@ -6,7 +6,7 @@ import br.com.fiap.agendabeleza.api.profissionais.domain.Especialidade;
 import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
 
 /**
- * Profissional com as especialidades do catálogo já resolvidas, na ordem em que foram definidas.
+ * Profissional com as especialidades do catálogo já resolvidas, ordenadas por nome.
  */
 public record PerfilProfissional(Profissional profissional, List<Especialidade> especialidades) {
 
