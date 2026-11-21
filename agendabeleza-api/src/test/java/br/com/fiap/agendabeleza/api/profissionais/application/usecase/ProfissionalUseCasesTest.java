@@ -371,4 +371,58 @@ class ProfissionalUseCasesTest {
 
 	}
 
+	@Nested
+	class Detalhar {
+
+		private final DetalharProfissionaisUseCase detalhar = new DetalharProfissionaisUseCase(especialidades);
+
+		@Test
+		void trazAsEspecialidadesNaOrdemDoProfissional() {
+			Especialidade corte = especialidades.adicionar("Corte");
+			Especialidade coloracao = especialidades.adicionar("Coloração");
+			Profissional profissional = cadastrarAna();
+			profissional.definirEspecialidades(List.of(coloracao.id(), corte.id()));
+
+			PerfilProfissional perfil = detalhar.executar(profissional);
+
+			assertThat(perfil.profissional()).isEqualTo(profissional);
+			assertThat(perfil.especialidades()).containsExactly(coloracao, corte);
+		}
+
+		@Test
+		void detalhaVariosProfissionaisComUmaUnicaBuscaNoCatalogo() {
+			Especialidade corte = especialidades.adicionar("Corte");
+			Especialidade manicure = especialidades.adicionar("Manicure");
+			Profissional ana = cadastrarAna();
+			ana.definirEspecialidades(List.of(corte.id()));
+			Profissional bia = cadastrarAna();
+			bia.definirEspecialidades(List.of(manicure.id(), corte.id()));
+			Profissional semEspecialidade = cadastrarAna();
+
+			List<PerfilProfissional> perfis = detalhar.executar(List.of(ana, bia, semEspecialidade));
+
+			assertThat(perfis).extracting(PerfilProfissional::profissional).containsExactly(ana, bia, semEspecialidade);
+			assertThat(perfis.get(0).especialidades()).containsExactly(corte);
+			assertThat(perfis.get(1).especialidades()).containsExactly(manicure, corte);
+			assertThat(perfis.get(2).especialidades()).isEmpty();
+			assertThat(especialidades.buscasPorIds()).isEqualTo(1);
+		}
+
+		@Test
+		void listaVaziaNaoConsultaOCatalogo() {
+			assertThat(detalhar.executar(List.of())).isEmpty();
+			assertThat(especialidades.buscasPorIds()).isZero();
+		}
+
+		@Test
+		void ignoraEspecialidadeQueSaiuDoCatalogo() {
+			Especialidade corte = especialidades.adicionar("Corte");
+			Profissional profissional = cadastrarAna();
+			profissional.definirEspecialidades(List.of(UUID.randomUUID(), corte.id()));
+
+			assertThat(detalhar.executar(profissional).especialidades()).containsExactly(corte);
+		}
+
+	}
+
 }
