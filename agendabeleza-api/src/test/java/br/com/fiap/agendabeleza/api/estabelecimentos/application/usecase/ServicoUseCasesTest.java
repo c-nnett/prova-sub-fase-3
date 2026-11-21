@@ -66,6 +66,32 @@ class ServicoUseCasesTest {
 	}
 
 	@Nested
+	class Listar {
+
+		private final ListarServicosUseCase listar = new ListarServicosUseCase(estabelecimentos, servicos);
+
+		@Test
+		void listaSomenteOsServicosAtivosDoEstabelecimento() {
+			Servico corte = cadastrarCorte();
+			Servico inativo = cadastrarCorte();
+			atualizar.executar(new AtualizarServicoUseCase.Comando(estabelecimento.id(), inativo.id(), GESTOR_ID,
+					"Antigo", null, CategoriaServico.CABELO, 30, BigDecimal.TEN, false));
+
+			assertThat(listar.executar(estabelecimento.id())).containsExactly(corte);
+		}
+
+		@Test
+		void recusaEstabelecimentoInexistente() {
+			UUID inexistente = UUID.randomUUID();
+
+			assertThatThrownBy(() -> listar.executar(inexistente))
+					.isInstanceOf(RecursoNaoEncontradoException.class)
+					.hasMessage("Estabelecimento " + inexistente + " não encontrado");
+		}
+
+	}
+
+	@Nested
 	class Atualizar {
 
 		@Test

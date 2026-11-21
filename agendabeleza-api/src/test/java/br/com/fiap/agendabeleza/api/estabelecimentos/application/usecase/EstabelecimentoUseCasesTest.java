@@ -66,6 +66,27 @@ class EstabelecimentoUseCasesTest {
 	}
 
 	@Nested
+	class Consultar {
+
+		private final ConsultarEstabelecimentoUseCase useCase = new ConsultarEstabelecimentoUseCase(repositorio);
+
+		@Test
+		void devolveOEstabelecimento() {
+			Estabelecimento estabelecimento = existente();
+
+			assertThat(useCase.executar(estabelecimento.id())).isSameAs(estabelecimento);
+		}
+
+		@Test
+		void recusaEstabelecimentoInexistente() {
+			assertThatThrownBy(() -> useCase.executar(INEXISTENTE))
+					.isInstanceOf(RecursoNaoEncontradoException.class)
+					.hasMessage("Estabelecimento " + INEXISTENTE + " não encontrado");
+		}
+
+	}
+
+	@Nested
 	class Atualizar {
 
 		private final AtualizarEstabelecimentoUseCase useCase = new AtualizarEstabelecimentoUseCase(repositorio);
