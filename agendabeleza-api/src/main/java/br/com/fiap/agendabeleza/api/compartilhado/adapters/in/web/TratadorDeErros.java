@@ -2,6 +2,7 @@ package br.com.fiap.agendabeleza.api.compartilhado.adapters.in.web;
 
 import java.util.List;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -38,6 +39,13 @@ class TratadorDeErros extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(AcessoNegadoException.class)
 	ProblemDetail acessoNegado(AcessoNegadoException excecao) {
 		return problema(HttpStatus.FORBIDDEN, "Acesso negado", excecao.getMessage());
+	}
+
+	/** Restrição do banco violada, como um {@code usuarioId} já vinculado a outro profissional. */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	ProblemDetail conflito(DataIntegrityViolationException excecao) {
+		return problema(HttpStatus.CONFLICT, "Conflito",
+				"A operação conflita com dados já cadastrados ou referencia um registro inexistente");
 	}
 
 	@Override
