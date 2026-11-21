@@ -262,7 +262,7 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | `total_avaliacoes` | `int` | Padrão 0 |
 | `ativo` | `boolean` | Padrão `true` |
 
-**`especialidade`**: `id` (PK) e `nome` (`varchar(80)`, único).
+**`especialidade`**: `id` (PK) e `nome` (`varchar(80)`, único). É um catálogo comum a todos os estabelecimentos, carregado por seed na migração `V2` e consultado em `GET /especialidades`. O profissional escolhe especialidades pelos ids do catálogo.
 
 **`profissional_especialidade`**: `profissional_id` e `especialidade_id`, ambos FK, formando a PK composta.
 
@@ -435,6 +435,9 @@ Estas regras envolvem mais de uma tabela ou dependem de horário e, por isso, n�
 - O `fim` é calculado como `inicio + servico.duracao_minutos`.
 - A avaliação só é permitida para agendamento `CONCLUIDO` e pelo cliente daquele agendamento. A restrição única em `agendamento_id` garante uma avaliação por atendimento.
 - O profissional e o serviço precisam pertencer ao `estabelecimento_id` informado.
+- Os serviços de um profissional (`profissional_servico`) precisam ser do mesmo estabelecimento e estar ativos. A tarifa não informada assume o `preco_base` no momento da definição.
+- Cada período de `disponibilidade_profissional` precisa caber no `horario_funcionamento` do estabelecimento naquele dia. Um dia fechado recusa qualquer período. Os períodos de um mesmo dia não podem se sobrepor, mas podem se encostar (08:00–12:00 e 12:00–18:00).
+- As especialidades de um profissional precisam existir no catálogo `especialidade`.
 - A criação de um bloqueio é recusada se houver agendamento ativo no período.
 - Reagendar ou cancelar marca os lembretes pendentes como `CANCELADA`. O reagendamento cria novos lembretes.
 - `nota_media` e `total_avaliacoes` são atualizados na mesma transação da avaliação, para evitar recalcular as médias em cada busca.

@@ -119,7 +119,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 #### Dom 22/11 (5,5h): profissionais e horários livres. Marco M1
 
-- [ ] Em TDD: `Profissional`, especialidades, tarifas por serviço e jornada de trabalho (1,5h).
+- [x] Em TDD: `Profissional`, especialidades, tarifas por serviço e jornada de trabalho (1,5h).
 - [ ] Criar migração `V2`, adaptadores e endpoints de perfil (1h).
 - [ ] Em TDD: `AgendaProfissional`, cruzando jornada, funcionamento, bloqueios e agendamentos. Cobrir almoço, serviço que não cabe no fim da jornada e dia fechado (1,5h).
 - [ ] Publicar `GET /profissionais/{id}/horarios-livres` (0,5h).

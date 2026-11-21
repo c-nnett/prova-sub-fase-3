@@ -186,7 +186,8 @@ Prefixo `/api/v1`. A documentação é gerada pelo springdoc em `/swagger-ui.htm
 | GET | `/estabelecimentos/{id}/servicos` | Público | Lista os serviços ativos |
 | PUT | `/estabelecimentos/{id}/servicos/{servicoId}` | Gestor dono | Atualiza, ativa ou desativa serviço |
 | POST | `/estabelecimentos/{id}/profissionais` | Gestor dono | Cadastra profissional |
-| GET | `/estabelecimentos/{id}/profissionais` | Público | Lista profissionais |
+| GET | `/estabelecimentos/{id}/profissionais` | Público | Lista profissionais ativos |
+| GET | `/especialidades` | Público | Lista o catálogo de especialidades |
 | GET | `/profissionais/{id}` | Público | Consulta perfil |
 | PUT | `/profissionais/{id}` | Gestor ou próprio | Atualiza perfil |
 | PUT | `/profissionais/{id}/especialidades` | Gestor ou próprio | Define especialidades |
