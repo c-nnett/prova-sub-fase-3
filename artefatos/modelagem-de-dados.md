@@ -262,7 +262,7 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | `total_avaliacoes` | `int` | Padrão 0 |
 | `ativo` | `boolean` | Padrão `true` |
 
-**`especialidade`**: `id` (PK) e `nome` (`varchar(80)`, único). É um catálogo comum a todos os estabelecimentos, carregado por seed na migração `V2` e consultado em `GET /especialidades`. O profissional escolhe especialidades pelos ids do catálogo.
+**`especialidade`**: `id` (PK) e `nome` (`varchar(80)`, único). É um catálogo comum a todos os estabelecimentos, carregado por seed na migração de profissionais, com ids fixos, e consultado em `GET /especialidades`. O profissional escolhe especialidades pelos ids do catálogo.
 
 **`profissional_especialidade`**: `profissional_id` e `especialidade_id`, ambos FK, formando a PK composta.
 
@@ -494,8 +494,9 @@ Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `
 | Migração | Conteúdo | Meta |
 |---|---|---|
 | `V1_1795218166967__criar_tabelas_estabelecimentos.sql` | `estabelecimento`, `foto_estabelecimento`, `horario_funcionamento`, `servico` | 21/11 |
+| `V1_1795282023552__criar_tabelas_profissionais.sql` | `profissional`, `especialidade` (com seed do catálogo), `profissional_especialidade`, `profissional_servico`, `disponibilidade_profissional`, `bloqueio_agenda` | 22/11 |
 
-As próximas migrações seguem o planejamento: profissionais e disponibilidade (22/11), agendamentos com a extensão `btree_gist` e a restrição de conflito (23/11), notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
+A tabela `bloqueio_agenda` já existe, mas o domínio e os endpoints de bloqueio entram com o cálculo de horários livres. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: agendamentos com a extensão `btree_gist` e a restrição de conflito (23/11), notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
 
 ## 7. Funcionalidades x tabelas
 
