@@ -179,12 +179,12 @@ Prefixo `/api/v1`. A documentação é gerada pelo springdoc em `/swagger-ui.htm
 | POST | `/estabelecimentos` | Gestor | Cadastra estabelecimento |
 | GET | `/estabelecimentos/{id}` | Público | Consulta detalhes |
 | PUT | `/estabelecimentos/{id}` | Gestor dono | Atualiza dados |
-| POST | `/estabelecimentos/{id}/fotos` | Gestor dono | Envia foto (multipart) |
+| POST | `/estabelecimentos/{id}/fotos` | Gestor dono | Adiciona foto informada como URL (`{ "url": ... }`) |
 | DELETE | `/estabelecimentos/{id}/fotos/{fotoId}` | Gestor dono | Remove foto |
 | PUT | `/estabelecimentos/{id}/horarios` | Gestor dono | Define horário de funcionamento |
 | POST | `/estabelecimentos/{id}/servicos` | Gestor dono | Cadastra serviço |
-| GET | `/estabelecimentos/{id}/servicos` | Público | Lista serviços |
-| PUT | `/servicos/{id}` | Gestor dono | Atualiza serviço |
+| GET | `/estabelecimentos/{id}/servicos` | Público | Lista os serviços ativos |
+| PUT | `/estabelecimentos/{id}/servicos/{servicoId}` | Gestor dono | Atualiza, ativa ou desativa serviço |
 | POST | `/estabelecimentos/{id}/profissionais` | Gestor dono | Cadastra profissional |
 | GET | `/estabelecimentos/{id}/profissionais` | Público | Lista profissionais |
 | GET | `/profissionais/{id}` | Público | Consulta perfil |
