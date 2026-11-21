@@ -377,16 +377,18 @@ class ProfissionalUseCasesTest {
 		private final DetalharProfissionaisUseCase detalhar = new DetalharProfissionaisUseCase(especialidades);
 
 		@Test
-		void trazAsEspecialidadesNaOrdemDoProfissional() {
-			Especialidade corte = especialidades.adicionar("Corte");
+		void trazAsEspecialidadesOrdenadasPorNome() {
+			Especialidade manicure = especialidades.adicionar("Manicure");
+			Especialidade barba = especialidades.adicionar("barba");
 			Especialidade coloracao = especialidades.adicionar("Coloração");
 			Profissional profissional = cadastrarAna();
-			profissional.definirEspecialidades(List.of(coloracao.id(), corte.id()));
+			// A ordem de definição não é preservada pelo banco, então a resposta usa a ordem do nome.
+			profissional.definirEspecialidades(List.of(manicure.id(), coloracao.id(), barba.id()));
 
 			PerfilProfissional perfil = detalhar.executar(profissional);
 
 			assertThat(perfil.profissional()).isEqualTo(profissional);
-			assertThat(perfil.especialidades()).containsExactly(coloracao, corte);
+			assertThat(perfil.especialidades()).containsExactly(barba, coloracao, manicure);
 		}
 
 		@Test
@@ -403,7 +405,7 @@ class ProfissionalUseCasesTest {
 
 			assertThat(perfis).extracting(PerfilProfissional::profissional).containsExactly(ana, bia, semEspecialidade);
 			assertThat(perfis.get(0).especialidades()).containsExactly(corte);
-			assertThat(perfis.get(1).especialidades()).containsExactly(manicure, corte);
+			assertThat(perfis.get(1).especialidades()).containsExactly(corte, manicure);
 			assertThat(perfis.get(2).especialidades()).isEmpty();
 			assertThat(especialidades.buscasPorIds()).isEqualTo(1);
 		}
