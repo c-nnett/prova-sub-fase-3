@@ -53,12 +53,10 @@ erDiagram
     }
     estabelecimento {
         uuid id PK
-        uuid gestor_id FK
+        uuid gestor_id
         varchar nome
         varchar cidade
         varchar bairro
-        numeric latitude
-        numeric longitude
         varchar timezone
         numeric nota_media
         int total_avaliacoes
@@ -199,7 +197,7 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | Coluna | Tipo | Restrições |
 |---|---|---|
 | `id` | `uuid` | PK |
-| `gestor_id` | `uuid` | FK `usuario` |
+| `gestor_id` | `uuid` | Sem FK: o usuário é identificado pelo cabeçalho `X-Usuario-Id` (planejamento, seção 2.1). Indexado |
 | `nome` | `varchar(150)` | |
 | `descricao` | `text` | Nula |
 | `logradouro` | `varchar(150)` | |
@@ -209,8 +207,6 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | `cidade` | `varchar(80)` | |
 | `uf` | `char(2)` | |
 | `cep` | `char(8)` | |
-| `latitude` | `numeric(9,6)` | Nula, entre -90 e 90 |
-| `longitude` | `numeric(9,6)` | Nula, entre -180 e 180 |
 | `timezone` | `varchar(50)` | Padrão `America/Sao_Paulo` |
 | `nota_media` | `numeric(3,2)` | Nula até a primeira avaliação |
 | `total_avaliacoes` | `int` | Padrão 0 |
@@ -223,7 +219,7 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | `id` | `uuid` | PK |
 | `estabelecimento_id` | `uuid` | FK, `ON DELETE CASCADE` |
 | `url` | `varchar(500)` | Endereço do objeto no S3 ou MinIO |
-| `ordem` | `int` | Único com `estabelecimento_id` |
+| `ordem` | `int` | Maior que zero. Único com `estabelecimento_id`, verificado no commit (`DEFERRABLE INITIALLY DEFERRED`) para permitir reordenar |
 
 **`horario_funcionamento`**
 
@@ -235,7 +231,7 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | `abre_as` | `time` | |
 | `fecha_as` | `time` | `CHECK (fecha_as > abre_as)` |
 
-Único em `(estabelecimento_id, dia_semana)`. Dia sem registro significa fechado.
+Único em `(estabelecimento_id, dia_semana)`, verificado no commit (`DEFERRABLE INITIALLY DEFERRED`) para permitir substituir os horários. Dia sem registro significa fechado.
 
 **`servico`**
 
@@ -465,7 +461,6 @@ CREATE INDEX idx_servico_categoria ON servico (categoria) WHERE ativo;
 
 -- Filtros de localização, avaliação e preço
 CREATE INDEX idx_estabelecimento_cidade_bairro ON estabelecimento (cidade, bairro) WHERE ativo;
-CREATE INDEX idx_estabelecimento_lat_lng ON estabelecimento (latitude, longitude) WHERE ativo;
 CREATE INDEX idx_estabelecimento_nota ON estabelecimento (nota_media DESC NULLS LAST) WHERE ativo;
 CREATE INDEX idx_profissional_servico_tarifa ON profissional_servico (servico_id, tarifa);
 
@@ -487,21 +482,17 @@ A restrição `agendamento_sem_conflito` cria um índice GiST em `(profissional_
 
 ### Busca por distância
 
-A distância usa a fórmula de Haversine em SQL. Um filtro prévio por faixa de latitude e longitude reduz as linhas calculadas. PostGIS ficou de fora porque o volume esperado não justifica mais uma dependência.
+Fora do escopo: a busca por raio de distância foi cortada no planejamento (seção 2.1), e as colunas `latitude` e `longitude` não existem.
 
 ## 6. Migrações Flyway
 
-| Migração | Conteúdo | Data prevista |
+Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `V1_<System.currentTimeMillis()>__<nome>.sql`. O Flyway lê o prefixo como a versão `1.<millis>`, então a ordem é a da criação, e migrações criadas em branches diferentes não disputam o mesmo número.
+
+| Migração | Conteúdo | Meta |
 |---|---|---|
-| `V1__extensoes_e_usuario.sql` | `btree_gist`, `pg_trgm`, `usuario` | 04/11 |
-| `V2__estabelecimentos.sql` | `estabelecimento`, `foto_estabelecimento`, `horario_funcionamento`, `servico` | 07/11 |
-| `V3__profissionais.sql` | `profissional`, `especialidade`, `profissional_especialidade`, `profissional_servico` | 10/11 |
-| `V4__disponibilidade.sql` | `disponibilidade_profissional`, `bloqueio_agenda` | 12/11 |
-| `V5__agendamentos.sql` | `agendamento`, `agendamento_historico`, restrição de conflito | 14/11 |
-| `V6__notificacoes.sql` | `notificacao` | 16/11 |
-| `V7__avaliacoes.sql` | `avaliacao` | 19/11 |
-| `V8__indices_busca.sql` | Índices de busca e filtros | 20/11 |
-| `V9__calendario.sql` | `integracao_calendario`, `evento_calendario` | 21/11 |
+| `V1_1795218166967__criar_tabelas_estabelecimentos.sql` | `estabelecimento`, `foto_estabelecimento`, `horario_funcionamento`, `servico` | 21/11 |
+
+As próximas migrações seguem o planejamento: profissionais e disponibilidade (22/11), agendamentos com a extensão `btree_gist` e a restrição de conflito (23/11), notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
 
 ## 7. Funcionalidades x tabelas
 
