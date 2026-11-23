@@ -452,6 +452,14 @@ horários livres = (disponibilidade ∩ funcionamento) − bloqueios − agendam
 
 Os candidatos são gerados em passos de 15 minutos, e cada um precisa comportar a duração do serviço escolhido.
 
+O cálculo fica em `AgendaProfissional` (`agendamentos/domain`):
+
+- Cada janela é a interseção de um período da jornada do dia com o funcionamento. Dia fechado ou jornada fora do funcionamento não geram janela.
+- A grade parte do início de cada janela. Um serviço que não termina até o fim da janela não é oferecido, então o almoço entre dois períodos nunca é atravessado.
+- Bloqueios e agendamentos ativos entram como intervalos `[inicio, fim)` (`Intervalo`, em `compartilhado/domain`), a mesma semântica da restrição `EXCLUDE`. Um horário pode começar no instante em que uma ocupação termina.
+- Horários que começam antes do instante atual são descartados.
+- `estaLivre` aplica as mesmas regras a um horário qualquer, mesmo fora da grade, e é a validação usada na criação do agendamento.
+
 ## 5. Índices
 
 ```sql
