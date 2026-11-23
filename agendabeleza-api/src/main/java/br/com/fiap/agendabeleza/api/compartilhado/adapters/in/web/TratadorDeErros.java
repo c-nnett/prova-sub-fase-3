@@ -16,6 +16,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.ConflitoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 
@@ -39,6 +40,12 @@ class TratadorDeErros extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(AcessoNegadoException.class)
 	ProblemDetail acessoNegado(AcessoNegadoException excecao) {
 		return problema(HttpStatus.FORBIDDEN, "Acesso negado", excecao.getMessage());
+	}
+
+	/** Conflito reconhecido pelo domínio, como um horário já ocupado. */
+	@ExceptionHandler(ConflitoException.class)
+	ProblemDetail conflitoDeNegocio(ConflitoException excecao) {
+		return problema(HttpStatus.CONFLICT, "Conflito", excecao.getMessage());
 	}
 
 	/** Restrição do banco violada, como um {@code usuarioId} já vinculado a outro profissional. */
