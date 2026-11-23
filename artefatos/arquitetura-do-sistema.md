@@ -193,14 +193,17 @@ Prefixo `/api/v1`. A documentação é gerada pelo springdoc em `/swagger-ui.htm
 | PUT | `/profissionais/{id}/especialidades` | Gestor ou próprio | Define especialidades |
 | PUT | `/profissionais/{id}/servicos` | Gestor ou próprio | Define serviços e tarifas. Tarifa ausente assume o preço base |
 | PUT | `/profissionais/{id}/disponibilidades` | Gestor ou próprio | Define jornada semanal, dentro do funcionamento do estabelecimento |
-| POST | `/profissionais/{id}/bloqueios` | Gestor ou próprio | Cria bloqueio |
-| DELETE | `/profissionais/{id}/bloqueios/{bloqueioId}` | Gestor ou próprio | Remove bloqueio |
+| POST | `/profissionais/{id}/bloqueios` | Gestor ou próprio | Cria bloqueio `[inicio, fim)`. Retorna 422 se o fim não for posterior ao início ou se o bloqueio já tiver terminado |
+| GET | `/profissionais/{id}/bloqueios` | Gestor ou próprio | Lista os bloqueios que ainda não terminaram, ordenados pelo início |
+| DELETE | `/profissionais/{id}/bloqueios/{bloqueioId}` | Gestor ou próprio | Remove bloqueio. Retorna 404 se ele não existir ou for de outro profissional |
+
+Os bloqueios recebem `inicio` e `fim` com fuso (`2026-11-30T10:00:00-03:00`) e são devolvidos em UTC (`2026-11-30T13:00:00Z`).
 
 ### 5.3 Agendamentos e painel
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/profissionais/{id}/horarios-livres?servicoId&data` | Público | Lista horários disponíveis |
+| GET | `/profissionais/{id}/horarios-livres?servicoId&data` | Público | Lista horários disponíveis. Retorna 404 se o profissional, o serviço ou o estabelecimento não existir e 422 se algum deles estiver inativo, se o serviço for de outro estabelecimento ou se o profissional não o executar |
 | POST | `/agendamentos` | Cliente | Cria agendamento. Retorna 409 em caso de conflito |
 | GET | `/agendamentos/meus` | Cliente | Lista histórico próprio |
 | GET | `/agendamentos/{id}` | Partes envolvidas | Consulta detalhes |
@@ -211,6 +214,17 @@ Prefixo `/api/v1`. A documentação é gerada pelo springdoc em `/swagger-ui.htm
 | POST | `/agendamentos/{id}/nao-comparecimento` | Gestor ou profissional | Registra falta |
 | GET | `/estabelecimentos/{id}/agendamentos?de&ate&status&profissionalId` | Gestor dono | Painel: agenda filtrada |
 | GET | `/estabelecimentos/{id}/painel/resumo?de&ate` | Gestor dono | Painel: totais por status |
+
+Resposta de horários livres, com os horários no fuso do estabelecimento e `fim` exclusivo:
+
+```json
+{
+  "data": "2026-11-30",
+  "fuso": "America/Sao_Paulo",
+  "duracaoMinutos": 60,
+  "horarios": [{ "inicio": "2026-11-30T09:00:00-03:00", "fim": "2026-11-30T10:00:00-03:00" }]
+}
+```
 
 ### 5.4 Avaliações e busca
 
