@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 
 /**
@@ -128,6 +129,11 @@ public class Agendamento {
 
 	public boolean ocupaHorario() {
 		return status.ocupaHorario();
+	}
+
+	/** Intervalo {@code [inicio, fim)} ocupado pelo atendimento. */
+	public Intervalo intervalo() {
+		return new Intervalo(inicio, fim);
 	}
 
 	public boolean pertenceAoCliente(UUID clienteId) {
