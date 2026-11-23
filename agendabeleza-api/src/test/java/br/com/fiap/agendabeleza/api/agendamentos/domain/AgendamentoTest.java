@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 
 class AgendamentoTest {
@@ -64,6 +65,11 @@ class AgendamentoTest {
 		assertThat(agendamento.versao()).isNull();
 		assertThat(agendamento.pertenceAoCliente(CLIENTE_ID)).isTrue();
 		assertThat(agendamento.pertenceAoCliente(UUID.randomUUID())).isFalse();
+	}
+
+	@Test
+	void intervaloCorrespondeAoInicioEFim() {
+		assertThat(reservado().intervalo()).isEqualTo(new Intervalo(INICIO, FIM));
 	}
 
 	@Test
