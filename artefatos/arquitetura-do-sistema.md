@@ -204,9 +204,9 @@ Os bloqueios recebem `inicio` e `fim` com fuso (`2026-11-30T10:00:00-03:00`) e s
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/profissionais/{id}/horarios-livres?servicoId&data` | Público | Lista horários disponíveis. Retorna 404 se o profissional, o serviço ou o estabelecimento não existir e 422 se algum deles estiver inativo, se o serviço for de outro estabelecimento ou se o profissional não o executar |
-| POST | `/agendamentos` | Cliente | Cria agendamento. Retorna 409 em caso de conflito |
-| GET | `/agendamentos/meus` | Cliente | Lista histórico próprio |
-| GET | `/agendamentos/{id}` | Partes envolvidas | Consulta detalhes |
+| POST | `/agendamentos` | Cliente | Cria agendamento com a tarifa do profissional. Retorna 404 para profissional ou serviço inexistente, 422 para horário no passado ou fora do atendimento e 409 para horário ocupado |
+| GET | `/agendamentos/meus` | Cliente | Lista histórico próprio, do mais recente para o mais antigo |
+| GET | `/agendamentos/{id}` | Partes envolvidas | Consulta detalhes. Cliente, gestor ou profissional; os demais recebem 403 |
 | POST | `/agendamentos/{id}/confirmar` | Gestor ou profissional | Confirma |
 | POST | `/agendamentos/{id}/reagendar` | Cliente ou gestor | Altera o horário |
 | POST | `/agendamentos/{id}/cancelar` | Cliente ou gestor | Cancela |

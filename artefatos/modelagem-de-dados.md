@@ -440,6 +440,7 @@ O agregado `Agendamento` também valida as regras de horário que dependem só d
 Estas regras envolvem mais de uma tabela ou dependem de horário e, por isso, não usam `CHECK`:
 
 - Um agendamento só é aceito se o horário estiver dentro do funcionamento e da disponibilidade do profissional e sem bloqueio. A exigência de início no futuro fica no domínio (seção 4.2).
+- O caso de uso verifica a sobreposição com os agendamentos ativos antes de gravar (409) e só depois a jornada e o funcionamento (422). Duas reservas simultâneas passam juntas por essa verificação, e a restrição `agendamento_sem_conflito` recusa a segunda, também com 409. Os bloqueios de agenda (`BloqueioAgenda`) ainda não entram nesta verificação.
 - O `fim` é calculado como `inicio + servico.duracao_minutos`.
 - A avaliação só é permitida para agendamento `CONCLUIDO` e pelo cliente daquele agendamento. A restrição única em `agendamento_id` garante uma avaliação por atendimento.
 - O profissional e o serviço precisam pertencer ao `estabelecimento_id` informado.
