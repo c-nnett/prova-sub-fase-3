@@ -123,7 +123,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 - [x] Criar migração `V2`, adaptadores e endpoints de perfil (1h).
 - [x] Em TDD: `AgendaProfissional`, cruzando jornada, funcionamento, bloqueios e agendamentos. Cobrir almoço, serviço que não cabe no fim da jornada e dia fechado (1,5h).
 - [x] Publicar `GET /profissionais/{id}/horarios-livres` (0,5h). Os bloqueios (domínio, persistência e endpoints) entraram junto, para que os horários livres já os descontem: cerca de 1,5h, 1h acima do previsto.
-- [ ] Configurar Cucumber com RestAssured e escrever a feature de cadastro de estabelecimento (1h).
+- [x] Configurar Cucumber com RestAssured e escrever a feature de cadastro de estabelecimento (1h).
 
 **Pronto quando:** os itens do **M1** estão atendidos, e a primeira feature roda no CI. **Funcionalidade 2 pronta.**
 

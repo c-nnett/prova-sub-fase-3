@@ -362,7 +362,15 @@ Uma falha no Google nunca desfaz a reserva. Se o Google recusar o refresh token,
 
 O histórico do Git deve mostrar o ciclo: um commit `test:` falhando, depois `feat:` e, quando houver, `refactor:`. Essa evidência será citada no Relatório Técnico.
 
-### 9.2 Exemplo de cenário BDD
+### 9.2 Cenários BDD
+
+As features ficam em `src/test/resources/features/<modulo>/`, escritas em Gherkin em português (`# language: pt`). A suíte `bdd/CucumberTest` roda as features no JUnit Platform e entra no `./mvnw verify` do CI. A configuração `bdd/CucumberSpringConfiguration` sobe a aplicação inteira numa porta aleatória, com PostgreSQL do Testcontainers. Os passos chamam a API por HTTP com o RestAssured 6.x, mandando o JSON como texto e lendo as respostas com o `JsonPath`, sem depender do Jackson. Cada cenário usa um gestor novo, então não é preciso limpar o banco. O relatório fica em `target/cucumber-reports/` (HTML e JSON) e é publicado no artefato `relatorios` do CI.
+
+| Feature | Cenários | Desde |
+|---|---|---|
+| `estabelecimentos/cadastro_estabelecimento.feature` | Cadastro com horários e consulta pública, serviço, foto, dados inválidos (400 e 422) e alteração por outro usuário (403) | 22/11 |
+
+Exemplo previsto para os agendamentos:
 
 ```gherkin
 # language: pt
