@@ -425,13 +425,18 @@ stateDiagram-v2
     NAO_COMPARECEU --> [*]
 ```
 
-O domínio valida essas transições, e cada uma grava uma linha em `agendamento_historico`.
+O domínio valida essas transições, e cada uma grava uma linha em `agendamento_historico`. Uma operação fora do diagrama é recusada com HTTP 422. O HTTP 409 fica reservado para o conflito de horário.
+
+O agregado `Agendamento` também valida as regras de horário que dependem só dele, recebendo o instante atual como parâmetro:
+
+- A reserva e o reagendamento exigem início no futuro. O reagendamento mantém a duração e exige um início diferente do atual.
+- Concluir e registrar o não comparecimento só valem a partir do início do atendimento.
 
 ### 4.3 Regras validadas nos casos de uso
 
 Estas regras envolvem mais de uma tabela ou dependem de horário e, por isso, não usam `CHECK`:
 
-- Um agendamento só é aceito se o horário estiver dentro do funcionamento e da disponibilidade do profissional, sem bloqueio e no futuro.
+- Um agendamento só é aceito se o horário estiver dentro do funcionamento e da disponibilidade do profissional e sem bloqueio. A exigência de início no futuro fica no domínio (seção 4.2).
 - O `fim` é calculado como `inicio + servico.duracao_minutos`.
 - A avaliação só é permitida para agendamento `CONCLUIDO` e pelo cliente daquele agendamento. A restrição única em `agendamento_id` garante uma avaliação por atendimento.
 - O profissional e o serviço precisam pertencer ao `estabelecimento_id` informado.
