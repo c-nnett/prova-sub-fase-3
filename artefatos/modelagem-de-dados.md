@@ -36,7 +36,8 @@ erDiagram
     servico ||--o{ profissional_servico : "executado por"
     profissional ||--o{ disponibilidade_profissional : "atende em"
     profissional ||--o{ bloqueio_agenda : "bloqueia"
-    profissional_servico ||--o{ agendamento : "origina"
+    profissional ||--o{ agendamento : "atende"
+    servico ||--o{ agendamento : "reservado em"
     agendamento ||--o{ agendamento_historico : "registra"
     agendamento ||--o| avaliacao : "recebe"
     agendamento ||--o{ notificacao : "dispara"
@@ -301,16 +302,18 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | Coluna | Tipo | Restrições |
 |---|---|---|
 | `id` | `uuid` | PK |
-| `cliente_id` | `uuid` | FK `usuario` |
+| `cliente_id` | `uuid` | Sem FK: o usuário vem do cabeçalho `X-Usuario-Id` (planejamento, seção 2.1) |
 | `estabelecimento_id` | `uuid` | FK. Redundância proposital para as consultas do painel |
-| `profissional_id` | `uuid` | FK composta com `servico_id` para `profissional_servico` |
-| `servico_id` | `uuid` | Idem |
+| `profissional_id` | `uuid` | FK `profissional` |
+| `servico_id` | `uuid` | FK `servico` |
 | `inicio` | `timestamptz` | |
 | `fim` | `timestamptz` | `CHECK (fim > inicio)` |
 | `status` | `varchar(20)` | `AGENDADO`, `CONFIRMADO`, `CONCLUIDO`, `CANCELADO`, `NAO_COMPARECEU` |
 | `preco` | `numeric(10,2)` | Tarifa congelada no momento da reserva |
 | `observacoes` | `varchar(500)` | Nula |
 | `versao` | `bigint` | Bloqueio otimista |
+
+O vínculo entre profissional e serviço é validado no caso de uso, e não por uma FK composta para `profissional_servico`. O adaptador de profissionais regrava as linhas dessa tabela a cada atualização do profissional, e a FK composta faria falhar qualquer edição de um profissional com agendamentos. O preço já fica congelado no agendamento.
 
 **`agendamento_historico`**: trilha de alterações, somente inserção.
 
@@ -323,7 +326,7 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | `inicio_anterior` | `timestamptz` | Nula, preenchida no reagendamento |
 | `inicio_novo` | `timestamptz` | Nula, preenchida no reagendamento |
 | `motivo` | `varchar(250)` | Nula |
-| `alterado_por` | `uuid` | FK `usuario` |
+| `alterado_por` | `uuid` | Sem FK, pelo mesmo motivo de `cliente_id` |
 | `ocorrido_em` | `timestamptz` | |
 
 ### 3.5 Avaliações
@@ -510,8 +513,9 @@ Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `
 |---|---|---|
 | `V1_1795218166967__criar_tabelas_estabelecimentos.sql` | `estabelecimento`, `foto_estabelecimento`, `horario_funcionamento`, `servico` | 21/11 |
 | `V1_1795282023552__criar_tabelas_profissionais.sql` | `profissional`, `especialidade` (com seed do catálogo), `profissional_especialidade`, `profissional_servico`, `disponibilidade_profissional`, `bloqueio_agenda` | 22/11 |
+| `V1_1795476613832__criar_tabelas_agendamentos.sql` | extensão `btree_gist`, `agendamento` com a restrição `agendamento_sem_conflito`, `agendamento_historico` | 23/11 |
 
-A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: agendamentos com a extensão `btree_gist` e a restrição de conflito (23/11), notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
+A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
 
 ## 7. Funcionalidades x tabelas
 
