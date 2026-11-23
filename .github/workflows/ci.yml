@@ -61,4 +61,5 @@ jobs:
           path: |
             agendabeleza-api/target/site/jacoco/
             agendabeleza-api/target/surefire-reports/
+            agendabeleza-api/target/cucumber-reports/
           if-no-files-found: ignore
