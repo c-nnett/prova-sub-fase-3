@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ComandoDeAlteracao;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
@@ -40,6 +41,8 @@ class GestaoAgendamentoControllerTest {
 
 	@MockitoBean
 	private ConfirmarAgendamentoUseCase confirmar;
+	@MockitoBean
+	private CancelarAgendamentoUseCase cancelar;
 
 	private final UUID agendamentoId = UUID.randomUUID();
 
@@ -101,6 +104,43 @@ class GestaoAgendamentoControllerTest {
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.detail").value("Não é possível confirmar um agendamento CANCELADO"));
+	}
+
+	// Cancelar. Os erros comuns a todas as ações (403, 404, 422) já estão cobertos na confirmação.
+
+	@Test
+	void cancelaComMotivo() throws Exception {
+		given(cancelar.executar(new CancelarAgendamentoUseCase.Comando(agendamentoId, GESTOR_ID, "Salão fechado")))
+				.willReturn(agendamentoCom(StatusAgendamento.CANCELADO));
+
+		mvc.perform(acao("cancelar").contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{ "motivo": "Salão fechado" }
+						"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("CANCELADO"));
+	}
+
+	@Test
+	void cancelaSemCorpo() throws Exception {
+		given(cancelar.executar(new CancelarAgendamentoUseCase.Comando(agendamentoId, GESTOR_ID, null)))
+				.willReturn(agendamentoCom(StatusAgendamento.CANCELADO));
+
+		mvc.perform(acao("cancelar"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("CANCELADO"));
+	}
+
+	@Test
+	void recusaMotivoDeCancelamentoLongo() throws Exception {
+		mvc.perform(acao("cancelar").contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{ "motivo": "%s" }
+						""".formatted("x".repeat(251))))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.erros[0].campo").value("motivo"));
+
+		verifyNoInteractions(cancelar);
 	}
 
 }

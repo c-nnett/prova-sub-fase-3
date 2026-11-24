@@ -26,6 +26,7 @@ import br.com.fiap.agendabeleza.api.agendamentos.domain.TransicaoInvalidaExcepti
 import br.com.fiap.agendabeleza.api.compartilhado.application.ExecucaoSerializadaDireta;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.EstabelecimentoRepositoryEmMemoria;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.ServicoRepositoryEmMemoria;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.CategoriaServico;
@@ -66,6 +67,8 @@ class GestaoAgendamentoUseCasesTest {
 			estabelecimentos, bloqueios, execucao, relogio);
 	private final ConfirmarAgendamentoUseCase confirmar = new ConfirmarAgendamentoUseCase(agendamentos,
 			profissionais, estabelecimentos, relogio);
+	private final CancelarAgendamentoUseCase cancelar = new CancelarAgendamentoUseCase(agendamentos, profissionais,
+			estabelecimentos, relogio);
 
 	private Estabelecimento estabelecimento;
 	private Servico corte;
@@ -93,6 +96,11 @@ class GestaoAgendamentoUseCasesTest {
 
 	private Agendamento confirmar(Agendamento agendamento, UUID usuarioSolicitante) {
 		return confirmar.executar(new ComandoDeAlteracao.Simples(agendamento.id(), usuarioSolicitante));
+	}
+
+	private Agendamento cancelar(Agendamento agendamento, UUID usuarioSolicitante, String motivo) {
+		return cancelar.executar(new CancelarAgendamentoUseCase.Comando(agendamento.id(), usuarioSolicitante,
+				motivo));
 	}
 
 	private AlteracaoAgendamento ultimaAlteracao() {
@@ -160,6 +168,70 @@ class GestaoAgendamentoUseCasesTest {
 				.isInstanceOf(TransicaoInvalidaException.class)
 				.hasMessage("Não é possível confirmar um agendamento CONFIRMADO");
 		assertThat(agendamentos.historico()).hasSize(alteracoesAntes);
+	}
+
+	// Cancelar
+
+	@Test
+	void clienteCancelaComMotivoEGravaOHistorico() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		Agendamento cancelado = cancelar(reservado, CLIENTE_ID, "Imprevisto no trabalho");
+
+		assertThat(cancelado.status()).isEqualTo(StatusAgendamento.CANCELADO);
+		assertThat(ultimaAlteracao()).satisfies(alteracao -> {
+			assertThat(alteracao.statusAnterior()).isEqualTo(StatusAgendamento.AGENDADO);
+			assertThat(alteracao.statusNovo()).isEqualTo(StatusAgendamento.CANCELADO);
+			assertThat(alteracao.motivo()).isEqualTo("Imprevisto no trabalho");
+			assertThat(alteracao.alteradoPor()).isEqualTo(CLIENTE_ID);
+		});
+	}
+
+	@Test
+	void gestorCancelaAgendamentoConfirmadoSemMotivo() {
+		Agendamento confirmado = confirmar(reservar(DEZ_HORAS), GESTOR_ID);
+
+		Agendamento cancelado = cancelar(confirmado, GESTOR_ID, null);
+
+		assertThat(cancelado.status()).isEqualTo(StatusAgendamento.CANCELADO);
+		assertThat(ultimaAlteracao().motivo()).isNull();
+	}
+
+	@Test
+	void cancelamentoLiberaOHorarioParaOutraReserva() {
+		cancelar(reservar(DEZ_HORAS), CLIENTE_ID, null);
+
+		assertThat(reservar(DEZ_HORAS).status()).isEqualTo(StatusAgendamento.AGENDADO);
+	}
+
+	@Test
+	void profissionalETerceiroNaoCancelam() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		for (UUID usuarioSemPermissao : List.of(USUARIO_PROFISSIONAL_ID, OUTRO_CLIENTE_ID)) {
+			assertThatThrownBy(() -> cancelar(reservado, usuarioSemPermissao, null))
+					.isInstanceOf(AcessoNegadoException.class)
+					.hasMessage("Somente o cliente ou o gestor do estabelecimento podem cancelar este agendamento");
+		}
+	}
+
+	@Test
+	void recusaMotivoLongoDemais() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		assertThatThrownBy(() -> cancelar(reservado, CLIENTE_ID, "x".repeat(251)))
+				.isInstanceOf(RegraNegocioException.class);
+		assertThat(agendamentos.buscarPorId(reservado.id()).orElseThrow().status())
+				.isEqualTo(StatusAgendamento.AGENDADO);
+	}
+
+	@Test
+	void recusaCancelarAgendamentoJaCancelado() {
+		Agendamento cancelado = cancelar(reservar(DEZ_HORAS), CLIENTE_ID, null);
+
+		assertThatThrownBy(() -> cancelar(cancelado, CLIENTE_ID, null))
+				.isInstanceOf(TransicaoInvalidaException.class)
+				.hasMessage("Não é possível cancelar um agendamento CANCELADO");
 	}
 
 }
