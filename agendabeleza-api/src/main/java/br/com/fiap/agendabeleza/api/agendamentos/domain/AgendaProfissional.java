@@ -52,7 +52,7 @@ public final class AgendaProfissional {
 		obrigatorio(data, "data");
 		obrigatorio(fuso, "fuso");
 		DayOfWeek dia = data.getDayOfWeek();
-		Optional<HorarioFuncionamento> horario = funcionamento.isEmpty() ? Optional.empty() : funcionamento;
+		Optional<HorarioFuncionamento> horario = Objects.isNull(funcionamento) ? Optional.empty() : funcionamento;
 		horario.ifPresent(h -> {
 			if (!h.diaSemana().equals(dia)) {
 				throw new RegraNegocioException(
