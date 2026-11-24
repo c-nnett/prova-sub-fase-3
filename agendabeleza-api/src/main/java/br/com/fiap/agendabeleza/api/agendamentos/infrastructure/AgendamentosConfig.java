@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.AgendamentosAtivosDoProfissional;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarHorariosLivresUseCase;
@@ -66,6 +67,12 @@ class AgendamentosConfig {
 	CancelarAgendamentoUseCase cancelarAgendamentoUseCase(AgendamentoRepository agendamentos,
 			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
 		return new CancelarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
+	}
+
+	@Bean
+	ConcluirAgendamentoUseCase concluirAgendamentoUseCase(AgendamentoRepository agendamentos,
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
+		return new ConcluirAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
 	}
 
 	@Bean

@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import br.com.fiap.agendabeleza.api.agendamentos.adapters.in.web.dto.AgendamentoResponse;
 import br.com.fiap.agendabeleza.api.agendamentos.adapters.in.web.dto.CancelamentoRequest;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.AlteracaoDeAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ComandoDeAlteracao;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -34,10 +36,13 @@ class GestaoAgendamentoController {
 
 	private final ConfirmarAgendamentoUseCase confirmar;
 	private final CancelarAgendamentoUseCase cancelar;
+	private final ConcluirAgendamentoUseCase concluir;
 
-	GestaoAgendamentoController(ConfirmarAgendamentoUseCase confirmar, CancelarAgendamentoUseCase cancelar) {
+	GestaoAgendamentoController(ConfirmarAgendamentoUseCase confirmar, CancelarAgendamentoUseCase cancelar,
+			ConcluirAgendamentoUseCase concluir) {
 		this.confirmar = confirmar;
 		this.cancelar = cancelar;
+		this.concluir = concluir;
 	}
 
 	@PostMapping("/confirmar")
@@ -46,7 +51,17 @@ class GestaoAgendamentoController {
 	AgendamentoResponse confirmar(
 			@PathVariable UUID id,
 			@Parameter(description = "Gestor ou profissional que confirma") @RequestHeader(USUARIO) UUID usuarioId) {
-		return AgendamentoResponse.de(confirmar.executar(new ComandoDeAlteracao.Simples(id, usuarioId)));
+		return executarSemDados(confirmar, id, usuarioId);
+	}
+
+	@PostMapping("/concluir")
+	@Operation(summary = "Conclui o atendimento", description = "Somente o gestor do estabelecimento ou o "
+			+ "profissional. Só um agendamento CONFIRMADO pode ser concluído, e a partir do início do atendimento; "
+			+ "os demais casos respondem 422.")
+	AgendamentoResponse concluir(
+			@PathVariable UUID id,
+			@Parameter(description = "Gestor ou profissional que conclui") @RequestHeader(USUARIO) UUID usuarioId) {
+		return executarSemDados(concluir, id, usuarioId);
 	}
 
 	@PostMapping("/cancelar")
@@ -61,6 +76,14 @@ class GestaoAgendamentoController {
 		String motivo = requisicao == null ? null : requisicao.motivo();
 		return AgendamentoResponse.de(cancelar.executar(new CancelarAgendamentoUseCase.Comando(id, usuarioId,
 				motivo)));
+	}
+
+	/** Ações que recebem apenas o agendamento e o solicitante. */
+	private static AgendamentoResponse executarSemDados(
+			AlteracaoDeAgendamentoUseCase<ComandoDeAlteracao.Simples> casoDeUso, UUID agendamentoId,
+			UUID usuarioSolicitante) {
+		return AgendamentoResponse.de(casoDeUso.executar(
+				new ComandoDeAlteracao.Simples(agendamentoId, usuarioSolicitante)));
 	}
 
 }
