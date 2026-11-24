@@ -5,10 +5,10 @@ import java.util.UUID;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
 
 /**
- * Quem pode agir sobre um agendamento (Strategy). Cada caso de uso escolhe a regra da sua ação, conforme a seção
+ * Quem pode consultar ou alterar um agendamento (Strategy). Cada caso de uso escolhe a regra da sua ação, conforme a seção
  * 5.3 da arquitetura.
  */
-enum PermissaoDeAlteracao {
+enum PermissaoNoAgendamento {
 
 	/** Consulta dos detalhes. */
 	PARTES_ENVOLVIDAS("o cliente, o gestor do estabelecimento ou o profissional") {
@@ -36,7 +36,7 @@ enum PermissaoDeAlteracao {
 
 	private final String quemPode;
 
-	PermissaoDeAlteracao(String quemPode) {
+	PermissaoNoAgendamento(String quemPode) {
 		this.quemPode = quemPode;
 	}
 

@@ -26,14 +26,14 @@ public abstract class AlteracaoDeAgendamentoUseCase<C extends ComandoDeAlteracao
 	private final ProfissionalRepository profissionais;
 	private final EstabelecimentoRepository estabelecimentos;
 	private final Clock relogio;
-	private final PermissaoDeAlteracao permissao;
+	private final PermissaoNoAgendamento permissao;
 	private final String acao;
 
 	/**
 	 * @param acao verbo da operação, usado na mensagem de acesso negado
 	 */
 	AlteracaoDeAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
-			EstabelecimentoRepository estabelecimentos, Clock relogio, PermissaoDeAlteracao permissao, String acao) {
+			EstabelecimentoRepository estabelecimentos, Clock relogio, PermissaoNoAgendamento permissao, String acao) {
 		this.agendamentos = agendamentos;
 		this.profissionais = profissionais;
 		this.estabelecimentos = estabelecimentos;
