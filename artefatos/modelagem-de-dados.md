@@ -262,7 +262,7 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | `total_avaliacoes` | `int` | Padrão 0 |
 | `ativo` | `boolean` | Padrão `true` |
 
-**`especialidade`**: `id` (PK) e `nome` (`varchar(80)`, único).
+**`especialidade`**: `id` (PK) e `nome` (`varchar(80)`, único). É um catálogo comum a todos os estabelecimentos, carregado por seed na migração de profissionais, com ids fixos, e consultado em `GET /especialidades`. O profissional escolhe especialidades pelos ids do catálogo.
 
 **`profissional_especialidade`**: `profissional_id` e `especialidade_id`, ambos FK, formando a PK composta.
 
@@ -435,7 +435,10 @@ Estas regras envolvem mais de uma tabela ou dependem de horário e, por isso, n�
 - O `fim` é calculado como `inicio + servico.duracao_minutos`.
 - A avaliação só é permitida para agendamento `CONCLUIDO` e pelo cliente daquele agendamento. A restrição única em `agendamento_id` garante uma avaliação por atendimento.
 - O profissional e o serviço precisam pertencer ao `estabelecimento_id` informado.
-- A criação de um bloqueio é recusada se houver agendamento ativo no período.
+- Os serviços de um profissional (`profissional_servico`) precisam ser do mesmo estabelecimento e estar ativos. A tarifa não informada assume o `preco_base` no momento da definição.
+- Cada período de `disponibilidade_profissional` precisa caber no `horario_funcionamento` do estabelecimento naquele dia. Um dia fechado recusa qualquer período. Os períodos de um mesmo dia não podem se sobrepor, mas podem se encostar (08:00–12:00 e 12:00–18:00).
+- As especialidades de um profissional precisam existir no catálogo `especialidade`.
+- A criação de um bloqueio é recusada se houver agendamento ativo no período. Vale a partir de 23/11, com os agendamentos. Bloqueio já encerrado também é recusado.
 - Reagendar ou cancelar marca os lembretes pendentes como `CANCELADA`. O reagendamento cria novos lembretes.
 - `nota_media` e `total_avaliacoes` são atualizados na mesma transação da avaliação, para evitar recalcular as médias em cada busca.
 
@@ -448,6 +451,16 @@ horários livres = (disponibilidade ∩ funcionamento) − bloqueios − agendam
 ```
 
 Os candidatos são gerados em passos de 15 minutos, e cada um precisa comportar a duração do serviço escolhido.
+
+O cálculo fica em `AgendaProfissional` (`agendamentos/domain`):
+
+- Cada janela é a interseção de um período da jornada do dia com o funcionamento. Dia fechado ou jornada fora do funcionamento não geram janela.
+- A grade parte do início de cada janela. Um serviço que não termina até o fim da janela não é oferecido, então o almoço entre dois períodos nunca é atravessado.
+- Bloqueios e agendamentos ativos entram como intervalos `[inicio, fim)` (`Intervalo`, em `compartilhado/domain`), a mesma semântica da restrição `EXCLUDE`. Um horário pode começar no instante em que uma ocupação termina.
+- Horários que começam antes do instante atual são descartados.
+- `estaLivre` aplica as mesmas regras a um horário qualquer, mesmo fora da grade, e é a validação usada na criação do agendamento.
+
+O caso de uso `ConsultarHorariosLivresUseCase` monta o dia no fuso do estabelecimento e busca os bloqueios que alcançam esse dia, inclusive os que começaram antes, como férias. Por enquanto, as ocupações vêm só dos bloqueios. Os agendamentos ativos entram em 23/11.
 
 ## 5. Índices
 
@@ -491,8 +504,9 @@ Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `
 | Migração | Conteúdo | Meta |
 |---|---|---|
 | `V1_1795218166967__criar_tabelas_estabelecimentos.sql` | `estabelecimento`, `foto_estabelecimento`, `horario_funcionamento`, `servico` | 21/11 |
+| `V1_1795282023552__criar_tabelas_profissionais.sql` | `profissional`, `especialidade` (com seed do catálogo), `profissional_especialidade`, `profissional_servico`, `disponibilidade_profissional`, `bloqueio_agenda` | 22/11 |
 
-As próximas migrações seguem o planejamento: profissionais e disponibilidade (22/11), agendamentos com a extensão `btree_gist` e a restrição de conflito (23/11), notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
+A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: agendamentos com a extensão `btree_gist` e a restrição de conflito (23/11), notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
 
 ## 7. Funcionalidades x tabelas
 

@@ -33,6 +33,8 @@
 		<springdoc.version>3.2.0</springdoc.version>
 		<archunit.version>1.5.1</archunit.version>
 		<cucumber.version>8.1.0</cucumber.version>
+		<!-- O Boot 4 não gerencia o RestAssured. A linha 6.x usa o mesmo Groovy 5 do Boot. -->
+		<rest-assured.version>6.3.0</rest-assured.version>
 		<jacoco.version>0.8.16</jacoco.version>
 		<jacoco.cobertura-minima>0.80</jacoco.cobertura-minima>
 		<sonar-maven-plugin.version>5.9.0.7382</sonar-maven-plugin.version>
@@ -157,6 +159,12 @@
 		<dependency>
 			<groupId>org.junit.platform</groupId>
 			<artifactId>junit-platform-suite</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.rest-assured</groupId>
+			<artifactId>rest-assured</artifactId>
+			<version>${rest-assured.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
