@@ -440,14 +440,16 @@ O agregado `Agendamento` também valida as regras de horário que dependem só d
 Estas regras envolvem mais de uma tabela ou dependem de horário e, por isso, não usam `CHECK`:
 
 - Um agendamento só é aceito se o horário estiver dentro do funcionamento e da disponibilidade do profissional e sem bloqueio. A exigência de início no futuro fica no domínio (seção 4.2).
-- O caso de uso verifica a sobreposição com os agendamentos ativos antes de gravar (409) e só depois a jornada e o funcionamento (422). Duas reservas simultâneas passam juntas por essa verificação, e a restrição `agendamento_sem_conflito` recusa a segunda, também com 409. Os bloqueios de agenda (`BloqueioAgenda`) ainda não entram nesta verificação.
+- O caso de uso verifica a sobreposição com os agendamentos ativos antes de gravar (409) e só depois a jornada e o funcionamento (422). Duas reservas simultâneas passam juntas por essa verificação, e a restrição `agendamento_sem_conflito` recusa a segunda, também com 409. Em seguida verifica os bloqueios do profissional (422).
 - O `fim` é calculado como `inicio + servico.duracao_minutos`.
 - A avaliação só é permitida para agendamento `CONCLUIDO` e pelo cliente daquele agendamento. A restrição única em `agendamento_id` garante uma avaliação por atendimento.
 - O profissional e o serviço precisam pertencer ao `estabelecimento_id` informado.
 - Os serviços de um profissional (`profissional_servico`) precisam ser do mesmo estabelecimento e estar ativos. A tarifa não informada assume o `preco_base` no momento da definição.
 - Cada período de `disponibilidade_profissional` precisa caber no `horario_funcionamento` do estabelecimento naquele dia. Um dia fechado recusa qualquer período. Os períodos de um mesmo dia não podem se sobrepor, mas podem se encostar (08:00–12:00 e 12:00–18:00).
 - As especialidades de um profissional precisam existir no catálogo `especialidade`.
-- A criação de um bloqueio é recusada se houver agendamento ativo no período. Vale a partir de 23/11, com os agendamentos. Bloqueio já encerrado também é recusado.
+- A criação de um bloqueio é recusada com 409 se houver agendamento ativo no período. Bloqueio já encerrado também é recusado. O módulo de profissionais consulta os agendamentos pela porta `AgendamentosAtivos`, implementada no módulo de agendamentos, para que os dois módulos não dependam um do outro.
+- Os horários livres descontam os bloqueios e os agendamentos ativos.
+- Entre bloqueio e agendamento não há restrição no banco: o `EXCLUDE` cobre apenas agendamento contra agendamento. Uma reserva e um bloqueio criados no mesmo instante, para o mesmo período, ainda podem se cruzar. A limitação é aceita porque o bloqueio é uma operação rara, feita pelo gestor ou pelo profissional.
 - Reagendar ou cancelar marca os lembretes pendentes como `CANCELADA`. O reagendamento cria novos lembretes.
 - `nota_media` e `total_avaliacoes` são atualizados na mesma transação da avaliação, para evitar recalcular as médias em cada busca.
 
