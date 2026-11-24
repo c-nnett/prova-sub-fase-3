@@ -440,16 +440,16 @@ O agregado `Agendamento` também valida as regras de horário que dependem só d
 Estas regras envolvem mais de uma tabela ou dependem de horário e, por isso, não usam `CHECK`:
 
 - Um agendamento só é aceito se o horário estiver dentro do funcionamento e da disponibilidade do profissional e sem bloqueio. A exigência de início no futuro fica no domínio (seção 4.2).
-- O caso de uso verifica a sobreposição com os agendamentos ativos antes de gravar (409) e só depois a jornada e o funcionamento (422). Duas reservas simultâneas passam juntas por essa verificação, e a restrição `agendamento_sem_conflito` recusa a segunda, também com 409. Em seguida verifica os bloqueios do profissional (422).
+- Antes de gravar, o caso de uso verifica nesta ordem: sobreposição com agendamentos ativos (409), sobreposição com bloqueios do profissional (422) e, por fim, jornada e funcionamento (422). A restrição `agendamento_sem_conflito` continua como garantia final entre agendamentos, também com 409.
 - O `fim` é calculado como `inicio + servico.duracao_minutos`.
 - A avaliação só é permitida para agendamento `CONCLUIDO` e pelo cliente daquele agendamento. A restrição única em `agendamento_id` garante uma avaliação por atendimento.
 - O profissional e o serviço precisam pertencer ao `estabelecimento_id` informado.
 - Os serviços de um profissional (`profissional_servico`) precisam ser do mesmo estabelecimento e estar ativos. A tarifa não informada assume o `preco_base` no momento da definição.
 - Cada período de `disponibilidade_profissional` precisa caber no `horario_funcionamento` do estabelecimento naquele dia. Um dia fechado recusa qualquer período. Os períodos de um mesmo dia não podem se sobrepor, mas podem se encostar (08:00–12:00 e 12:00–18:00).
 - As especialidades de um profissional precisam existir no catálogo `especialidade`.
-- A criação de um bloqueio é recusada com 409 se houver agendamento ativo no período. Bloqueio já encerrado também é recusado. O módulo de profissionais consulta os agendamentos pela porta `AgendamentosAtivos`, implementada no módulo de agendamentos, para que os dois módulos não dependam um do outro.
+- A criação de um bloqueio é recusada com 409 se houver agendamento ativo no trecho do período que ainda não passou. Um bloqueio com início retroativo, como uma licença registrada no dia seguinte, não é recusado por agendamentos antigos que nunca foram concluídos. Bloqueio já encerrado também é recusado. O módulo de profissionais consulta os agendamentos pela porta `AgendamentosAtivos`, implementada no módulo de agendamentos, para que os dois módulos não dependam um do outro.
 - Os horários livres descontam os bloqueios e os agendamentos ativos.
-- Entre bloqueio e agendamento não há restrição no banco: o `EXCLUDE` cobre apenas agendamento contra agendamento. Uma reserva e um bloqueio criados no mesmo instante, para o mesmo período, ainda podem se cruzar. A limitação é aceita porque o bloqueio é uma operação rara, feita pelo gestor ou pelo profissional.
+- Entre bloqueio e agendamento não há restrição no banco, porque o `EXCLUDE` cobre apenas agendamento contra agendamento. Para que uma reserva e um bloqueio simultâneos não passem juntos pelas verificações, as duas operações rodam com uma trava consultiva por profissional (`pg_advisory_xact_lock`, pela porta `ExecucaoSerializada`). Ela é obtida no início da transação que verifica e grava, e liberada no commit ou no rollback. Operações de profissionais diferentes não esperam umas pelas outras. O `ConcorrenciaAgendaTest` comprova o comportamento, e o relatório de desenvolvimento registra o desafio.
 - Reagendar ou cancelar marca os lembretes pendentes como `CANCELADA`. O reagendamento cria novos lembretes.
 - `nota_media` e `total_avaliacoes` são atualizados na mesma transação da avaliação, para evitar recalcular as médias em cada busca.
 
@@ -471,7 +471,7 @@ O cálculo fica em `AgendaProfissional` (`agendamentos/domain`):
 - Horários que começam antes do instante atual são descartados.
 - `estaLivre` aplica as mesmas regras a um horário qualquer, mesmo fora da grade, e é a validação usada na criação do agendamento.
 
-O caso de uso `ConsultarHorariosLivresUseCase` monta o dia no fuso do estabelecimento e busca os bloqueios que alcançam esse dia, inclusive os que começaram antes, como férias. Por enquanto, as ocupações vêm só dos bloqueios. Os agendamentos ativos entram em 23/11.
+O caso de uso `ConsultarHorariosLivresUseCase` monta o dia no fuso do estabelecimento e busca os bloqueios e os agendamentos ativos que alcançam esse dia, inclusive os bloqueios que começaram antes, como férias.
 
 ## 5. Índices
 
@@ -491,6 +491,9 @@ CREATE INDEX idx_profissional_servico_tarifa ON profissional_servico (servico_id
 -- Painel e histórico do cliente
 CREATE INDEX idx_agendamento_estab_inicio ON agendamento (estabelecimento_id, inicio);
 CREATE INDEX idx_agendamento_cliente_inicio ON agendamento (cliente_id, inicio DESC);
+
+-- Ocupações do profissional: horários livres, reserva e bloqueio
+CREATE INDEX idx_agendamento_prof_periodo ON agendamento (profissional_id, inicio, fim);
 CREATE INDEX idx_bloqueio_prof_periodo ON bloqueio_agenda (profissional_id, inicio, fim);
 
 -- Avaliações
@@ -502,7 +505,7 @@ CREATE INDEX idx_notificacao_pendente ON notificacao (enviar_em) WHERE status = 
 CREATE INDEX idx_evento_pendente ON evento_calendario (atualizado_em) WHERE acao_pendente <> 'NENHUMA';
 ```
 
-A restrição `agendamento_sem_conflito` cria um índice GiST em `(profissional_id, intervalo)`, que também atende à consulta de horários ocupados dos agendamentos ativos.
+A restrição `agendamento_sem_conflito` cria um índice GiST parcial sobre `(profissional_id, tstzrange(inicio, fim))`, que serve apenas à própria restrição. A consulta de ocupações compara as colunas `inicio` e `fim` e recebe os status como parâmetro, e por isso usa `idx_agendamento_prof_periodo`.
 
 ### Busca por distância
 
