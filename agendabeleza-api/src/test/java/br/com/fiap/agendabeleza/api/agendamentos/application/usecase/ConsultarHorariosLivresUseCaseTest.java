@@ -21,6 +21,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import br.com.fiap.agendabeleza.api.agendamentos.application.AgendamentoRepositoryEmMemoria;
+import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
@@ -48,6 +50,7 @@ class ConsultarHorariosLivresUseCaseTest {
 	private final ServicoRepositoryEmMemoria servicos = new ServicoRepositoryEmMemoria();
 	private final ProfissionalRepositoryEmMemoria profissionais = new ProfissionalRepositoryEmMemoria();
 	private final BloqueioAgendaRepositoryEmMemoria bloqueios = new BloqueioAgendaRepositoryEmMemoria();
+	private final AgendamentoRepositoryEmMemoria agendamentos = new AgendamentoRepositoryEmMemoria();
 
 	private final Estabelecimento estabelecimento = estabelecimentoAberto();
 	private final Servico corte = servicos.salvar(Servico.cadastrar(estabelecimento.id(), "Corte", null,
@@ -71,7 +74,7 @@ class ConsultarHorariosLivresUseCaseTest {
 
 	private ConsultarHorariosLivresUseCase consultarEm(Instant agora) {
 		return new ConsultarHorariosLivresUseCase(profissionais, estabelecimentos, servicos, bloqueios,
-				Clock.fixed(agora, ZoneOffset.UTC));
+				agendamentos, Clock.fixed(agora, ZoneOffset.UTC));
 	}
 
 	private HorariosLivres consultar(LocalDate data) {
@@ -86,6 +89,11 @@ class ConsultarHorariosLivresUseCaseTest {
 		return livres.horarios().stream()
 				.map(horario -> horario.inicio().atZone(FUSO).toLocalTime().toString())
 				.toList();
+	}
+
+	private Agendamento agendar(Instant inicio) {
+		return agendamentos.salvar(Agendamento.reservar(UUID.randomUUID(), estabelecimento.id(), ana.id(),
+				corte.id(), inicio, 60, new BigDecimal("90.00"), null, DOMINGO));
 	}
 
 	private BloqueioAgenda bloquear(UUID profissionalId, Instant inicio, Instant fim) {
@@ -112,6 +120,30 @@ class ConsultarHorariosLivresUseCaseTest {
 			bloquear(ana.id(), as("10:00"), as("11:00"));
 
 			assertThat(inicios(consultar(SEGUNDA))).containsExactly("09:00", "11:00");
+		}
+
+		@Test
+		void descontaOsAgendamentosAtivosDoProfissional() {
+			agendar(as("10:00"));
+
+			assertThat(inicios(consultar(SEGUNDA))).containsExactly("09:00", "11:00");
+		}
+
+		@Test
+		void agendamentoCanceladoNaoOcupaOHorario() {
+			Agendamento agendamento = agendamentos.buscarPorId(agendar(as("10:00")).id()).orElseThrow();
+			agendamento.cancelar(null, agendamento.clienteId(), DOMINGO);
+			agendamentos.salvar(agendamento);
+
+			assertThat(consultar(SEGUNDA).horarios()).hasSize(9);
+		}
+
+		@Test
+		void descontaBloqueiosEAgendamentosJuntos() {
+			bloquear(ana.id(), as("09:00"), as("10:00"));
+			agendar(as("11:00"));
+
+			assertThat(inicios(consultar(SEGUNDA))).containsExactly("10:00");
 		}
 
 		@Test

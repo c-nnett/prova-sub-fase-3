@@ -23,6 +23,7 @@ import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.EstabelecimentoRepositoryEmMemoria;
@@ -31,7 +32,9 @@ import br.com.fiap.agendabeleza.api.estabelecimentos.domain.CategoriaServico;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Estabelecimento;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.HorarioFuncionamento;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Servico;
+import br.com.fiap.agendabeleza.api.profissionais.application.BloqueioAgendaRepositoryEmMemoria;
 import br.com.fiap.agendabeleza.api.profissionais.application.ProfissionalRepositoryEmMemoria;
+import br.com.fiap.agendabeleza.api.profissionais.domain.BloqueioAgenda;
 import br.com.fiap.agendabeleza.api.profissionais.domain.PeriodoTrabalho;
 import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
 import br.com.fiap.agendabeleza.api.profissionais.domain.ServicoProfissional;
@@ -52,10 +55,13 @@ class AgendamentoUseCasesTest {
 	private final ProfissionalRepositoryEmMemoria profissionais = new ProfissionalRepositoryEmMemoria();
 	private final ServicoRepositoryEmMemoria servicos = new ServicoRepositoryEmMemoria();
 	private final EstabelecimentoRepositoryEmMemoria estabelecimentos = new EstabelecimentoRepositoryEmMemoria();
+	private final BloqueioAgendaRepositoryEmMemoria bloqueios = new BloqueioAgendaRepositoryEmMemoria();
 	private final Clock relogio = Clock.fixed(AGORA, ZoneOffset.UTC);
 
 	private final CriarAgendamentoUseCase criar = new CriarAgendamentoUseCase(agendamentos, profissionais, servicos,
-			estabelecimentos, relogio);
+			estabelecimentos, bloqueios, relogio);
+	private final AgendamentosAtivosDoProfissional agendamentosAtivos =
+			new AgendamentosAtivosDoProfissional(agendamentos);
 	private final ListarMeusAgendamentosUseCase listarMeus = new ListarMeusAgendamentosUseCase(agendamentos);
 	private final ConsultarAgendamentoUseCase consultar = new ConsultarAgendamentoUseCase(agendamentos,
 			profissionais, estabelecimentos);
@@ -242,6 +248,52 @@ class AgendamentoUseCasesTest {
 		Agendamento novo = reservar(OUTRO_CLIENTE_ID, DEZ_HORAS);
 
 		assertThat(novo.status()).isEqualTo(StatusAgendamento.AGENDADO);
+	}
+
+	@Test
+	void recusaReservaSobreBloqueioDoProfissional() {
+		bloqueios.salvar(BloqueioAgenda.reconstituir(UUID.randomUUID(), ana.id(), DEZ_HORAS.minusSeconds(1800),
+				DEZ_HORAS.plusSeconds(1800), "Consulta médica"));
+
+		assertRecusa(DEZ_HORAS, CriarAgendamentoUseCase.PROFISSIONAL_INDISPONIVEL);
+	}
+
+	@Test
+	void aceitaReservaQueTerminaQuandoOBloqueioComeca() {
+		bloqueios.salvar(BloqueioAgenda.reconstituir(UUID.randomUUID(), ana.id(), DEZ_HORAS.plusSeconds(3600),
+				DEZ_HORAS.plusSeconds(7200), null));
+
+		assertThat(reservar(DEZ_HORAS).status()).isEqualTo(StatusAgendamento.AGENDADO);
+	}
+
+	@Test
+	void ignoraBloqueioDeOutroProfissional() {
+		bloqueios.salvar(BloqueioAgenda.reconstituir(UUID.randomUUID(), UUID.randomUUID(), DEZ_HORAS,
+				DEZ_HORAS.plusSeconds(3600), null));
+
+		assertThat(reservar(DEZ_HORAS).status()).isEqualTo(StatusAgendamento.AGENDADO);
+	}
+
+	// Agendamentos ativos, consultados pelo módulo de profissionais ao criar um bloqueio
+
+	@Test
+	void informaAgendamentoAtivoQueCruzaOPeriodo() {
+		Agendamento criado = reservar(DEZ_HORAS);
+		Intervalo cruzando = new Intervalo(criado.fim().minusSeconds(60), criado.fim().plusSeconds(3600));
+		Intervalo encostado = new Intervalo(criado.fim(), criado.fim().plusSeconds(3600));
+
+		assertThat(agendamentosAtivos.existemNoPeriodo(ana.id(), cruzando)).isTrue();
+		assertThat(agendamentosAtivos.existemNoPeriodo(UUID.randomUUID(), cruzando)).isFalse();
+		assertThat(agendamentosAtivos.existemNoPeriodo(ana.id(), encostado)).isFalse();
+	}
+
+	@Test
+	void agendamentoCanceladoNaoContaComoAtivo() {
+		Agendamento lido = agendamentos.buscarPorId(reservar(DEZ_HORAS).id()).orElseThrow();
+		lido.cancelar(null, CLIENTE_ID, AGORA);
+		agendamentos.salvar(lido);
+
+		assertThat(agendamentosAtivos.existemNoPeriodo(ana.id(), lido.intervalo())).isFalse();
 	}
 
 	// Listar e consultar
