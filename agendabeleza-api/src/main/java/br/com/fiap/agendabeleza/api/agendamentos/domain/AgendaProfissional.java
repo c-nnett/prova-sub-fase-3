@@ -47,11 +47,12 @@ public final class AgendaProfissional {
 	 *
 	 * @param ocupacoes bloqueios e agendamentos ativos do profissional que alcançam o dia
 	 */
-	public static AgendaProfissional doDia(LocalDate data, ZoneId fuso, Optional<HorarioFuncionamento> horario,
+	public static AgendaProfissional doDia(LocalDate data, ZoneId fuso, Optional<HorarioFuncionamento> funcionamento,
 			Collection<PeriodoTrabalho> jornada, Collection<Intervalo> ocupacoes) {
 		obrigatorio(data, "data");
 		obrigatorio(fuso, "fuso");
 		DayOfWeek dia = data.getDayOfWeek();
+		Optional<HorarioFuncionamento> horario = funcionamento.isEmpty() ? Optional.empty() : funcionamento;
 		horario.ifPresent(h -> {
 			if (!h.diaSemana().equals(dia)) {
 				throw new RegraNegocioException(
