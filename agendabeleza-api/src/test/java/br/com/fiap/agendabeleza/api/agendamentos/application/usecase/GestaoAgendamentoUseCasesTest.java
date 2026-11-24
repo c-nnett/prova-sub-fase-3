@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,8 @@ class GestaoAgendamentoUseCasesTest {
 	private static final Instant AGORA = Instant.parse("2030-03-01T12:00:00Z");
 	/** Segunda, 10h no horário de Brasília. */
 	private static final Instant DEZ_HORAS = Instant.parse("2030-03-04T13:00:00Z");
+	/** Segunda, 14h no horário de Brasília. */
+	private static final Instant CATORZE_HORAS = Instant.parse("2030-03-04T17:00:00Z");
 	private static final UUID CLIENTE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
 	private static final UUID OUTRO_CLIENTE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000c2");
 
@@ -101,6 +104,15 @@ class GestaoAgendamentoUseCasesTest {
 	private Agendamento cancelar(Agendamento agendamento, UUID usuarioSolicitante, String motivo) {
 		return cancelar.executar(new CancelarAgendamentoUseCase.Comando(agendamento.id(), usuarioSolicitante,
 				motivo));
+	}
+
+	private static Clock relogioEm(Instant instante) {
+		return Clock.fixed(instante, ZoneOffset.UTC);
+	}
+
+	private Agendamento concluir(Agendamento agendamento, UUID usuarioSolicitante, Instant agora) {
+		return new ConcluirAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogioEm(agora))
+				.executar(new ComandoDeAlteracao.Simples(agendamento.id(), usuarioSolicitante));
 	}
 
 	private AlteracaoAgendamento ultimaAlteracao() {
@@ -232,6 +244,58 @@ class GestaoAgendamentoUseCasesTest {
 		assertThatThrownBy(() -> cancelar(cancelado, CLIENTE_ID, null))
 				.isInstanceOf(TransicaoInvalidaException.class)
 				.hasMessage("Não é possível cancelar um agendamento CANCELADO");
+	}
+
+	// Concluir
+
+	@Test
+	void gestorEProfissionalConcluemDepoisDoInicio() {
+		Map<UUID, Instant> inicioPorUsuario = Map.of(
+				GESTOR_ID, DEZ_HORAS,
+				USUARIO_PROFISSIONAL_ID, CATORZE_HORAS);
+
+		for (Map.Entry<UUID, Instant> usuarioEInicio : inicioPorUsuario.entrySet()) {
+			UUID usuarioComPermissao = usuarioEInicio.getKey();
+			Instant durante = usuarioEInicio.getValue().plusSeconds(1800);
+			Agendamento confirmado = confirmar(reservar(usuarioEInicio.getValue()), GESTOR_ID);
+
+			Agendamento concluido = concluir(confirmado, usuarioComPermissao, durante);
+
+			assertThat(concluido.status()).isEqualTo(StatusAgendamento.CONCLUIDO);
+			assertThat(ultimaAlteracao()).satisfies(alteracao -> {
+				assertThat(alteracao.statusAnterior()).isEqualTo(StatusAgendamento.CONFIRMADO);
+				assertThat(alteracao.statusNovo()).isEqualTo(StatusAgendamento.CONCLUIDO);
+				assertThat(alteracao.alteradoPor()).isEqualTo(usuarioComPermissao);
+				assertThat(alteracao.ocorridoEm()).isEqualTo(durante);
+			});
+		}
+	}
+
+	@Test
+	void recusaConcluirAntesDoInicio() {
+		Agendamento confirmado = confirmar(reservar(DEZ_HORAS), GESTOR_ID);
+
+		assertThatThrownBy(() -> concluir(confirmado, GESTOR_ID, DEZ_HORAS.minusSeconds(60)))
+				.isInstanceOf(RegraNegocioException.class)
+				.hasMessage("O atendimento só pode ser concluído depois do início");
+	}
+
+	@Test
+	void recusaConcluirAgendamentoNaoConfirmado() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		assertThatThrownBy(() -> concluir(reservado, GESTOR_ID, DEZ_HORAS.plusSeconds(1800)))
+				.isInstanceOf(TransicaoInvalidaException.class)
+				.hasMessage("Não é possível concluir um agendamento AGENDADO");
+	}
+
+	@Test
+	void clienteNaoConclui() {
+		Agendamento confirmado = confirmar(reservar(DEZ_HORAS), GESTOR_ID);
+
+		assertThatThrownBy(() -> concluir(confirmado, CLIENTE_ID, DEZ_HORAS.plusSeconds(1800)))
+				.isInstanceOf(AcessoNegadoException.class)
+				.hasMessage("Somente o gestor do estabelecimento ou o profissional podem concluir este agendamento");
 	}
 
 }

@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ComandoDeAlteracao;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
@@ -43,6 +44,8 @@ class GestaoAgendamentoControllerTest {
 	private ConfirmarAgendamentoUseCase confirmar;
 	@MockitoBean
 	private CancelarAgendamentoUseCase cancelar;
+	@MockitoBean
+	private ConcluirAgendamentoUseCase concluir;
 
 	private final UUID agendamentoId = UUID.randomUUID();
 
@@ -141,6 +144,17 @@ class GestaoAgendamentoControllerTest {
 				.andExpect(jsonPath("$.erros[0].campo").value("motivo"));
 
 		verifyNoInteractions(cancelar);
+	}
+
+	// Concluir
+
+	@Test
+	void concluiEDevolveOAgendamento() throws Exception {
+		given(concluir.executar(comandoDoGestor())).willReturn(agendamentoCom(StatusAgendamento.CONCLUIDO));
+
+		mvc.perform(acao("concluir"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("CONCLUIDO"));
 	}
 
 }
