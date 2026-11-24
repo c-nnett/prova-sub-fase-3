@@ -18,8 +18,11 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.AgendamentoRepositoryEmMemoria;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.AlteracaoAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
@@ -30,12 +33,14 @@ import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoExc
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.EstabelecimentoRepositoryEmMemoria;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.ServicoRepositoryEmMemoria;
+import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.EstabelecimentoRepository;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.CategoriaServico;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Estabelecimento;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.HorarioFuncionamento;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Servico;
 import br.com.fiap.agendabeleza.api.profissionais.application.BloqueioAgendaRepositoryEmMemoria;
 import br.com.fiap.agendabeleza.api.profissionais.application.ProfissionalRepositoryEmMemoria;
+import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalRepository;
 import br.com.fiap.agendabeleza.api.profissionais.domain.PeriodoTrabalho;
 import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
 import br.com.fiap.agendabeleza.api.profissionais.domain.ServicoProfissional;
@@ -108,11 +113,6 @@ class GestaoAgendamentoUseCasesTest {
 
 	private static Clock relogioEm(Instant instante) {
 		return Clock.fixed(instante, ZoneOffset.UTC);
-	}
-
-	private Agendamento concluir(Agendamento agendamento, UUID usuarioSolicitante, Instant agora) {
-		return new ConcluirAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogioEm(agora))
-				.executar(new ComandoDeAlteracao.Simples(agendamento.id(), usuarioSolicitante));
 	}
 
 	private AlteracaoAgendamento ultimaAlteracao() {
@@ -246,10 +246,11 @@ class GestaoAgendamentoUseCasesTest {
 				.hasMessage("Não é possível cancelar um agendamento CANCELADO");
 	}
 
-	// Concluir
+	// Concluir e registrar o não comparecimento: mesmas regras, destinos diferentes
 
-	@Test
-	void gestorEProfissionalConcluemDepoisDoInicio() {
+	@ParameterizedTest
+	@EnumSource(Encerramento.class)
+	void gestorEProfissionalEncerramDepoisDoInicio(Encerramento encerramento) {
 		Map<UUID, Instant> inicioPorUsuario = Map.of(
 				GESTOR_ID, DEZ_HORAS,
 				USUARIO_PROFISSIONAL_ID, CATORZE_HORAS);
@@ -259,43 +260,87 @@ class GestaoAgendamentoUseCasesTest {
 			Instant durante = usuarioEInicio.getValue().plusSeconds(1800);
 			Agendamento confirmado = confirmar(reservar(usuarioEInicio.getValue()), GESTOR_ID);
 
-			Agendamento concluido = concluir(confirmado, usuarioComPermissao, durante);
+			Agendamento encerrado = encerrar(encerramento, confirmado, usuarioComPermissao, durante);
 
-			assertThat(concluido.status()).isEqualTo(StatusAgendamento.CONCLUIDO);
+			assertThat(encerrado.status()).isEqualTo(encerramento.statusFinal);
 			assertThat(ultimaAlteracao()).satisfies(alteracao -> {
 				assertThat(alteracao.statusAnterior()).isEqualTo(StatusAgendamento.CONFIRMADO);
-				assertThat(alteracao.statusNovo()).isEqualTo(StatusAgendamento.CONCLUIDO);
+				assertThat(alteracao.statusNovo()).isEqualTo(encerramento.statusFinal);
 				assertThat(alteracao.alteradoPor()).isEqualTo(usuarioComPermissao);
 				assertThat(alteracao.ocorridoEm()).isEqualTo(durante);
 			});
 		}
 	}
 
-	@Test
-	void recusaConcluirAntesDoInicio() {
+	@ParameterizedTest
+	@EnumSource(Encerramento.class)
+	void recusaEncerrarAntesDoInicio(Encerramento encerramento) {
 		Agendamento confirmado = confirmar(reservar(DEZ_HORAS), GESTOR_ID);
 
-		assertThatThrownBy(() -> concluir(confirmado, GESTOR_ID, DEZ_HORAS.minusSeconds(60)))
+		assertThatThrownBy(() -> encerrar(encerramento, confirmado, GESTOR_ID, DEZ_HORAS.minusSeconds(60)))
 				.isInstanceOf(RegraNegocioException.class)
-				.hasMessage("O atendimento só pode ser concluído depois do início");
+				.hasMessage(encerramento.mensagemAntesDoInicio);
 	}
 
-	@Test
-	void recusaConcluirAgendamentoNaoConfirmado() {
+	@ParameterizedTest
+	@EnumSource(Encerramento.class)
+	void recusaEncerrarAgendamentoNaoConfirmado(Encerramento encerramento) {
 		Agendamento reservado = reservar(DEZ_HORAS);
 
-		assertThatThrownBy(() -> concluir(reservado, GESTOR_ID, DEZ_HORAS.plusSeconds(1800)))
+		assertThatThrownBy(() -> encerrar(encerramento, reservado, GESTOR_ID, DEZ_HORAS.plusSeconds(1800)))
 				.isInstanceOf(TransicaoInvalidaException.class)
-				.hasMessage("Não é possível concluir um agendamento AGENDADO");
+				.hasMessage("Não é possível " + encerramento.verboDaTransicao + " um agendamento AGENDADO");
 	}
 
-	@Test
-	void clienteNaoConclui() {
+	@ParameterizedTest
+	@EnumSource(Encerramento.class)
+	void clienteNaoEncerra(Encerramento encerramento) {
 		Agendamento confirmado = confirmar(reservar(DEZ_HORAS), GESTOR_ID);
 
-		assertThatThrownBy(() -> concluir(confirmado, CLIENTE_ID, DEZ_HORAS.plusSeconds(1800)))
+		assertThatThrownBy(() -> encerrar(encerramento, confirmado, CLIENTE_ID, DEZ_HORAS.plusSeconds(1800)))
 				.isInstanceOf(AcessoNegadoException.class)
-				.hasMessage("Somente o gestor do estabelecimento ou o profissional podem concluir este agendamento");
+				.hasMessage("Somente o gestor do estabelecimento ou o profissional podem "
+						+ encerramento.acaoNaMensagemDePermissao);
+	}
+
+	private Agendamento encerrar(Encerramento encerramento, Agendamento agendamento, UUID usuarioSolicitante,
+			Instant agora) {
+		return encerramento.fabrica.criar(agendamentos, profissionais, estabelecimentos, relogioEm(agora))
+				.executar(new ComandoDeAlteracao.Simples(agendamento.id(), usuarioSolicitante));
+	}
+
+	/** Cria o caso de uso de encerramento com as dependências do teste. */
+	@FunctionalInterface
+	private interface FabricaDeEncerramento {
+		AlteracaoDeAgendamentoUseCase<ComandoDeAlteracao.Simples> criar(AgendamentoRepository agendamentos,
+				ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio);
+	}
+
+	/** As duas formas de encerrar um atendimento confirmado, a partir do início. */
+	enum Encerramento {
+
+		CONCLUSAO(ConcluirAgendamentoUseCase::new, StatusAgendamento.CONCLUIDO,
+				"O atendimento só pode ser concluído depois do início",
+				"concluir", "concluir este agendamento"),
+		NAO_COMPARECIMENTO(RegistrarNaoComparecimentoUseCase::new, StatusAgendamento.NAO_COMPARECEU,
+				"O não comparecimento só pode ser registrado depois do início",
+				"registrar o não comparecimento de", "registrar o não comparecimento deste agendamento");
+
+		private final FabricaDeEncerramento fabrica;
+		private final StatusAgendamento statusFinal;
+		private final String mensagemAntesDoInicio;
+		private final String verboDaTransicao;
+		private final String acaoNaMensagemDePermissao;
+
+		Encerramento(FabricaDeEncerramento fabrica, StatusAgendamento statusFinal, String mensagemAntesDoInicio,
+				String verboDaTransicao, String acaoNaMensagemDePermissao) {
+			this.fabrica = fabrica;
+			this.statusFinal = statusFinal;
+			this.mensagemAntesDoInicio = mensagemAntesDoInicio;
+			this.verboDaTransicao = verboDaTransicao;
+			this.acaoNaMensagemDePermissao = acaoNaMensagemDePermissao;
+		}
+
 	}
 
 }

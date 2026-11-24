@@ -23,6 +23,7 @@ import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAge
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ComandoDeAlteracao;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.RegistrarNaoComparecimentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.TransicaoInvalidaException;
@@ -46,6 +47,8 @@ class GestaoAgendamentoControllerTest {
 	private CancelarAgendamentoUseCase cancelar;
 	@MockitoBean
 	private ConcluirAgendamentoUseCase concluir;
+	@MockitoBean
+	private RegistrarNaoComparecimentoUseCase registrarNaoComparecimento;
 
 	private final UUID agendamentoId = UUID.randomUUID();
 
@@ -155,6 +158,18 @@ class GestaoAgendamentoControllerTest {
 		mvc.perform(acao("concluir"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.status").value("CONCLUIDO"));
+	}
+
+	// Não comparecimento
+
+	@Test
+	void registraNaoComparecimentoEDevolveOAgendamento() throws Exception {
+		given(registrarNaoComparecimento.executar(comandoDoGestor()))
+				.willReturn(agendamentoCom(StatusAgendamento.NAO_COMPARECEU));
+
+		mvc.perform(acao("nao-comparecimento"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.status").value("NAO_COMPARECEU"));
 	}
 
 }
