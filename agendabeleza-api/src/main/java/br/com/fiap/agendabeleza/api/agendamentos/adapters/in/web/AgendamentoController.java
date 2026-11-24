@@ -46,7 +46,8 @@ class AgendamentoController {
 	@PostMapping
 	@Operation(summary = "Reserva um horário", description = "O usuário do cabeçalho é o cliente. O preço é a "
 			+ "tarifa do profissional para o serviço. Responde 404 se o profissional ou o serviço não existir, 422 "
-			+ "se o horário estiver no passado ou fora do atendimento, ou se o profissional não executar o serviço, "
+			+ "se o horário estiver no passado, fora do atendimento ou em um bloqueio do profissional, ou se ele não "
+			+ "executar o serviço, "
 			+ "e 409 se o profissional já tiver um agendamento que se sobrepõe ao horário.")
 	ResponseEntity<AgendamentoResponse> criar(
 			@Parameter(description = "Identificador do cliente que faz a reserva") @RequestHeader(USUARIO) UUID usuarioId,

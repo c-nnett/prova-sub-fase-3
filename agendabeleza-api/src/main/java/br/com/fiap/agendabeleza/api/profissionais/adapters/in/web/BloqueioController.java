@@ -47,7 +47,8 @@ class BloqueioController {
 
 	@PostMapping
 	@Operation(summary = "Cria um bloqueio", description = "O período é [inicio, fim). Responde 422 se o fim não "
-			+ "for posterior ao início ou se o bloqueio já tiver terminado. " + GESTOR_OU_PROPRIO)
+			+ "for posterior ao início ou se o bloqueio já tiver terminado, e 409 se o profissional tiver agendamento "
+			+ "ativo no período. " + GESTOR_OU_PROPRIO)
 	ResponseEntity<BloqueioResponse> criar(
 			@PathVariable UUID profissionalId,
 			@Parameter(description = DESCRICAO_USUARIO) @RequestHeader(USUARIO) UUID usuarioId,

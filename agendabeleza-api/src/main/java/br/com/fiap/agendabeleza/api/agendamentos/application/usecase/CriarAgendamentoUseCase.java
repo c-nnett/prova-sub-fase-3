@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.AgendaProfissional;
@@ -19,7 +20,9 @@ import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.Estabeleci
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.ServicoRepository;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Estabelecimento;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Servico;
+import br.com.fiap.agendabeleza.api.profissionais.application.port.BloqueioAgendaRepository;
 import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalRepository;
+import br.com.fiap.agendabeleza.api.profissionais.domain.BloqueioAgenda;
 import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
 
 /**
@@ -33,19 +36,23 @@ import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
 public class CriarAgendamentoUseCase {
 
 	public static final String FORA_DO_ATENDIMENTO = "o horário está fora do atendimento do profissional";
+	public static final String PROFISSIONAL_INDISPONIVEL = "o profissional está indisponível nesse horário";
 
 	private final AgendamentoRepository agendamentos;
 	private final ProfissionalRepository profissionais;
 	private final ServicoRepository servicos;
 	private final EstabelecimentoRepository estabelecimentos;
+	private final BloqueioAgendaRepository bloqueios;
 	private final Clock relogio;
 
 	public CriarAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
-			ServicoRepository servicos, EstabelecimentoRepository estabelecimentos, Clock relogio) {
+			ServicoRepository servicos, EstabelecimentoRepository estabelecimentos, BloqueioAgendaRepository bloqueios,
+			Clock relogio) {
 		this.agendamentos = agendamentos;
 		this.profissionais = profissionais;
 		this.servicos = servicos;
 		this.estabelecimentos = estabelecimentos;
+		this.bloqueios = bloqueios;
 		this.relogio = relogio;
 	}
 
@@ -97,19 +104,29 @@ public class CriarAgendamentoUseCase {
 		return estabelecimento;
 	}
 
-	/** Conflito com outro agendamento vira 409. Fora da jornada ou do funcionamento vira 422. */
+	/**
+	 * Conflito com outro agendamento vira 409. Bloqueio do profissional, ou horário fora da jornada ou do
+	 * funcionamento, vira 422.
+	 */
 	private void garantirHorarioLivre(Agendamento agendamento, Profissional profissional,
 			Estabelecimento estabelecimento, Instant agora) {
 		ZoneId fuso = estabelecimento.timezone();
 		LocalDate data = LocalDate.ofInstant(agendamento.inicio(), fuso);
 		Intervalo dia = new Intervalo(data.atStartOfDay(fuso).toInstant(),
 				data.plusDays(1).atStartOfDay(fuso).toInstant());
-		List<Intervalo> ocupacoes = agendamentos.ocupacoesDoProfissional(profissional.id(), dia);
+		List<Intervalo> agendados = agendamentos.ocupacoesDoProfissional(profissional.id(), dia);
+		List<Intervalo> bloqueados = bloqueios.listarNoPeriodo(profissional.id(), dia).stream()
+				.map(BloqueioAgenda::periodo)
+				.toList();
 
 		Intervalo horario = agendamento.intervalo();
-		if (ocupacoes.stream().anyMatch(ocupacao -> ocupacao.sobrepoe(horario))) {
+		if (agendados.stream().anyMatch(ocupacao -> ocupacao.sobrepoe(horario))) {
 			throw new HorarioIndisponivelException();
 		}
+		if (bloqueados.stream().anyMatch(bloqueio -> bloqueio.sobrepoe(horario))) {
+			throw new RegraNegocioException(PROFISSIONAL_INDISPONIVEL);
+		}
+		List<Intervalo> ocupacoes = Stream.concat(agendados.stream(), bloqueados.stream()).toList();
 		AgendaProfissional agenda = AgendaProfissional.doDia(data, fuso,
 				estabelecimento.horarioEm(data.getDayOfWeek()), profissional.jornada(), ocupacoes);
 		if (!agenda.estaLivre(horario, agora)) {
