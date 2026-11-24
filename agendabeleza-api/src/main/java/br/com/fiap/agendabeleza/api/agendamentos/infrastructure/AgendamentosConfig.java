@@ -14,6 +14,7 @@ import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarAg
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarHorariosLivresUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CriarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ListarMeusAgendamentosUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ReagendarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.RegistrarNaoComparecimentoUseCase;
 import br.com.fiap.agendabeleza.api.compartilhado.application.port.ExecucaoSerializada;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.EstabelecimentoRepository;
@@ -80,6 +81,14 @@ class AgendamentosConfig {
 	RegistrarNaoComparecimentoUseCase registrarNaoComparecimentoUseCase(AgendamentoRepository agendamentos,
 			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
 		return new RegistrarNaoComparecimentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
+	}
+
+	@Bean
+	ReagendarAgendamentoUseCase reagendarAgendamentoUseCase(AgendamentoRepository agendamentos,
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos,
+			BloqueioAgendaRepository bloqueios, ExecucaoSerializada execucao, Clock relogio) {
+		return new ReagendarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, bloqueios, execucao,
+				relogio);
 	}
 
 	@Bean

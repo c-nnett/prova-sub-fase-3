@@ -11,11 +11,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import br.com.fiap.agendabeleza.api.agendamentos.adapters.in.web.dto.AgendamentoResponse;
 import br.com.fiap.agendabeleza.api.agendamentos.adapters.in.web.dto.CancelamentoRequest;
+import br.com.fiap.agendabeleza.api.agendamentos.adapters.in.web.dto.ReagendamentoRequest;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.AlteracaoDeAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ComandoDeAlteracao;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ReagendarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.RegistrarNaoComparecimentoUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -39,13 +41,16 @@ class GestaoAgendamentoController {
 	private final CancelarAgendamentoUseCase cancelar;
 	private final ConcluirAgendamentoUseCase concluir;
 	private final RegistrarNaoComparecimentoUseCase registrarNaoComparecimento;
+	private final ReagendarAgendamentoUseCase reagendar;
 
 	GestaoAgendamentoController(ConfirmarAgendamentoUseCase confirmar, CancelarAgendamentoUseCase cancelar,
-			ConcluirAgendamentoUseCase concluir, RegistrarNaoComparecimentoUseCase registrarNaoComparecimento) {
+			ConcluirAgendamentoUseCase concluir, RegistrarNaoComparecimentoUseCase registrarNaoComparecimento,
+			ReagendarAgendamentoUseCase reagendar) {
 		this.confirmar = confirmar;
 		this.cancelar = cancelar;
 		this.concluir = concluir;
 		this.registrarNaoComparecimento = registrarNaoComparecimento;
+		this.reagendar = reagendar;
 	}
 
 	@PostMapping("/confirmar")
@@ -89,6 +94,20 @@ class GestaoAgendamentoController {
 		String motivo = requisicao == null ? null : requisicao.motivo();
 		return AgendamentoResponse.de(cancelar.executar(new CancelarAgendamentoUseCase.Comando(id, usuarioId,
 				motivo)));
+	}
+
+	@PostMapping("/reagendar")
+	@Operation(summary = "Reagenda para outro início", description = "Somente o cliente ou o gestor do "
+			+ "estabelecimento. A duração é mantida e o status volta para AGENDADO. O novo horário passa pelas mesmas "
+			+ "regras da reserva, sem contar o horário atual do próprio agendamento: 422 se o agendamento não estiver "
+			+ "ativo, se o novo início estiver no passado ou for igual ao atual, se cair em bloqueio do profissional "
+			+ "ou fora do atendimento; 409 se o profissional já tiver outro agendamento no novo horário.")
+	AgendamentoResponse reagendar(
+			@PathVariable UUID id,
+			@Parameter(description = "Cliente ou gestor que reagenda") @RequestHeader(USUARIO) UUID usuarioId,
+			@Valid @RequestBody ReagendamentoRequest requisicao) {
+		return AgendamentoResponse.de(reagendar.executar(new ReagendarAgendamentoUseCase.Comando(id, usuarioId,
+				requisicao.novoInicio())));
 	}
 
 	/** Ações que recebem apenas o agendamento e o solicitante. */

@@ -55,6 +55,17 @@ public final class DisponibilidadeDaAgenda {
 		garantirHorarioLivre(horario, profissional, estabelecimento, agora, ocupacao -> true);
 	}
 
+	/**
+	 * Para mover um agendamento: o intervalo que ele ocupa hoje não conta como ocupação, senão um reagendamento
+	 * que se sobrepõe ao próprio horário antigo seria recusado. Basta comparar o intervalo, porque a restrição
+	 * {@code agendamento_sem_conflito} garante que nenhum outro agendamento ativo do profissional o sobrepõe.
+	 */
+	void garantirHorarioLivreIgnorando(Intervalo intervaloAtual, Intervalo novoHorario, Profissional profissional,
+			Estabelecimento estabelecimento, Instant agora) {
+		garantirHorarioLivre(novoHorario, profissional, estabelecimento, agora,
+				ocupacao -> !ocupacao.equals(intervaloAtual));
+	}
+
 	private void garantirHorarioLivre(Intervalo horario, Profissional profissional, Estabelecimento estabelecimento,
 			Instant agora, Predicate<Intervalo> ocupacaoConsiderada) {
 		ZoneId fuso = estabelecimento.timezone();
