@@ -30,7 +30,7 @@ public abstract class AlteracaoDeAgendamentoUseCase<C extends ComandoDeAlteracao
 	private final String acao;
 
 	/**
-	 * @param acao verbo da operação, usado na mensagem de acesso negado
+	 * @param acao operação com o objeto, usada na mensagem de acesso negado, como "confirmar este agendamento"
 	 */
 	AlteracaoDeAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
 			EstabelecimentoRepository estabelecimentos, Clock relogio, PermissaoNoAgendamento permissao, String acao) {

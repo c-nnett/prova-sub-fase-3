@@ -16,6 +16,7 @@ import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAge
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ComandoDeAlteracao;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.RegistrarNaoComparecimentoUseCase;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,12 +38,14 @@ class GestaoAgendamentoController {
 	private final ConfirmarAgendamentoUseCase confirmar;
 	private final CancelarAgendamentoUseCase cancelar;
 	private final ConcluirAgendamentoUseCase concluir;
+	private final RegistrarNaoComparecimentoUseCase registrarNaoComparecimento;
 
 	GestaoAgendamentoController(ConfirmarAgendamentoUseCase confirmar, CancelarAgendamentoUseCase cancelar,
-			ConcluirAgendamentoUseCase concluir) {
+			ConcluirAgendamentoUseCase concluir, RegistrarNaoComparecimentoUseCase registrarNaoComparecimento) {
 		this.confirmar = confirmar;
 		this.cancelar = cancelar;
 		this.concluir = concluir;
+		this.registrarNaoComparecimento = registrarNaoComparecimento;
 	}
 
 	@PostMapping("/confirmar")
@@ -62,6 +65,16 @@ class GestaoAgendamentoController {
 			@PathVariable UUID id,
 			@Parameter(description = "Gestor ou profissional que conclui") @RequestHeader(USUARIO) UUID usuarioId) {
 		return executarSemDados(concluir, id, usuarioId);
+	}
+
+	@PostMapping("/nao-comparecimento")
+	@Operation(summary = "Registra que o cliente faltou", description = "Somente o gestor do estabelecimento ou o "
+			+ "profissional. Só um agendamento CONFIRMADO, e a partir do início do atendimento; os demais casos "
+			+ "respondem 422.")
+	AgendamentoResponse registrarNaoComparecimento(
+			@PathVariable UUID id,
+			@Parameter(description = "Gestor ou profissional que registra") @RequestHeader(USUARIO) UUID usuarioId) {
+		return executarSemDados(registrarNaoComparecimento, id, usuarioId);
 	}
 
 	@PostMapping("/cancelar")

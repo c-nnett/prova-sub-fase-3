@@ -13,7 +13,7 @@ public class ConfirmarAgendamentoUseCase extends AlteracaoDeAgendamentoUseCase<C
 	public ConfirmarAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
 			EstabelecimentoRepository estabelecimentos, Clock relogio) {
 		super(agendamentos, profissionais, estabelecimentos, relogio, PermissaoNoAgendamento.GESTOR_OU_PROFISSIONAL,
-				"confirmar");
+				"confirmar este agendamento");
 	}
 
 	@Override

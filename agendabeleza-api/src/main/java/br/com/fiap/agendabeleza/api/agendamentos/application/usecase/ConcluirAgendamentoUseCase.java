@@ -15,7 +15,7 @@ public class ConcluirAgendamentoUseCase extends AlteracaoDeAgendamentoUseCase<Co
 	public ConcluirAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
 			EstabelecimentoRepository estabelecimentos, Clock relogio) {
 		super(agendamentos, profissionais, estabelecimentos, relogio, PermissaoNoAgendamento.GESTOR_OU_PROFISSIONAL,
-				"concluir");
+				"concluir este agendamento");
 	}
 
 	@Override

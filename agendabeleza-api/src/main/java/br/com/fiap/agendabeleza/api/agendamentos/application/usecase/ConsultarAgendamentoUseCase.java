@@ -26,7 +26,7 @@ public class ConsultarAgendamentoUseCase {
 	public Agendamento executar(UUID agendamentoId, UUID usuarioId) {
 		PartesDoAgendamento partes = PartesDoAgendamento.carregar(agendamentos, profissionais, estabelecimentos,
 				agendamentoId);
-		PermissaoNoAgendamento.PARTES_ENVOLVIDAS.exigir(partes, usuarioId, "consultar");
+		PermissaoNoAgendamento.PARTES_ENVOLVIDAS.exigir(partes, usuarioId, "consultar este agendamento");
 		return partes.agendamento();
 	}
 

@@ -16,7 +16,7 @@ public class CancelarAgendamentoUseCase extends AlteracaoDeAgendamentoUseCase<Ca
 	public CancelarAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
 			EstabelecimentoRepository estabelecimentos, Clock relogio) {
 		super(agendamentos, profissionais, estabelecimentos, relogio, PermissaoNoAgendamento.CLIENTE_OU_GESTOR,
-				"cancelar");
+				"cancelar este agendamento");
 	}
 
 	@Override

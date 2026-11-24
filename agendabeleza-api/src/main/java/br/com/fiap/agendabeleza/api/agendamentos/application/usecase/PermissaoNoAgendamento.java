@@ -43,12 +43,12 @@ enum PermissaoNoAgendamento {
 	abstract boolean permite(PartesDoAgendamento partes, UUID usuario);
 
 	/**
-	 * @param acao verbo da operação, completando a frase "Somente ... podem ... este agendamento"
+	 * @param acao operação com o objeto, como "confirmar este agendamento"
 	 * @throws AcessoNegadoException se o usuário não tiver a permissão
 	 */
 	void exigir(PartesDoAgendamento partes, UUID usuario, String acao) {
 		if (!permite(partes, usuario)) {
-			throw new AcessoNegadoException("Somente " + quemPode + " podem " + acao + " este agendamento");
+			throw new AcessoNegadoException("Somente " + quemPode + " podem " + acao);
 		}
 	}
 
