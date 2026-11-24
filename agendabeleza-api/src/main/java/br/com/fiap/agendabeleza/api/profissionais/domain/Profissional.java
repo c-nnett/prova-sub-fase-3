@@ -146,7 +146,7 @@ public class Profissional {
 
 	/** Períodos do dia, ordenados pelo início. */
 	public List<PeriodoTrabalho> jornadaEm(DayOfWeek dia) {
-		return jornada.stream().filter(periodo -> periodo.diaSemana() == dia).toList();
+		return jornada.stream().filter(periodo -> periodo.diaSemana().equals(dia)).toList();
 	}
 
 	public boolean pertenceA(UUID estabelecimentoId) {

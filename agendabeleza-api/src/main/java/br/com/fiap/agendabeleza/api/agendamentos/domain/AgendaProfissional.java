@@ -47,14 +47,13 @@ public final class AgendaProfissional {
 	 *
 	 * @param ocupacoes bloqueios e agendamentos ativos do profissional que alcançam o dia
 	 */
-	public static AgendaProfissional doDia(LocalDate data, ZoneId fuso, Optional<HorarioFuncionamento> funcionamento,
+	public static AgendaProfissional doDia(LocalDate data, ZoneId fuso, Optional<HorarioFuncionamento> horario,
 			Collection<PeriodoTrabalho> jornada, Collection<Intervalo> ocupacoes) {
 		obrigatorio(data, "data");
 		obrigatorio(fuso, "fuso");
-		Optional<HorarioFuncionamento> horario = funcionamento == null ? Optional.empty() : funcionamento;
 		DayOfWeek dia = data.getDayOfWeek();
 		horario.ifPresent(h -> {
-			if (h.diaSemana() != dia) {
+			if (!h.diaSemana().equals(dia)) {
 				throw new RegraNegocioException(
 						"O funcionamento informado é de " + h.diaSemana() + ", mas a data é " + dia);
 			}
@@ -63,7 +62,7 @@ public final class AgendaProfissional {
 		List<Intervalo> janelas = horario
 				.map(h -> janelas(data, fuso, h, jornada))
 				.orElseGet(List::of);
-		List<Intervalo> ocupadas = ocupacoes == null
+		List<Intervalo> ocupadas = Objects.isNull(ocupacoes)
 				? List.of()
 				: ocupacoes.stream().filter(Objects::nonNull).toList();
 		return new AgendaProfissional(janelas, ocupadas);
@@ -104,12 +103,12 @@ public final class AgendaProfissional {
 	/** Interseção de cada período da jornada do dia com o funcionamento, sem janelas vazias e em ordem. */
 	private static List<Intervalo> janelas(LocalDate data, ZoneId fuso, HorarioFuncionamento funcionamento,
 			Collection<PeriodoTrabalho> jornada) {
-		if (jornada == null) {
+		if (Objects.isNull(jornada)) {
 			return List.of();
 		}
 		return jornada.stream()
 				.filter(Objects::nonNull)
-				.filter(periodo -> periodo.diaSemana() == data.getDayOfWeek())
+				.filter(periodo -> periodo.diaSemana().equals(data.getDayOfWeek()))
 				.sorted(Comparator.comparing(PeriodoTrabalho::inicio))
 				.flatMap(periodo -> {
 					LocalTime inicio = maior(periodo.inicio(), funcionamento.abreAs());

@@ -24,7 +24,7 @@ public record PeriodoTrabalho(DayOfWeek diaSemana, LocalTime inicio, LocalTime f
 
 	/** Indica se os dois períodos caem no mesmo dia e se cruzam. Períodos que só se encostam não se sobrepõem. */
 	public boolean sobrepoe(PeriodoTrabalho outro) {
-		return diaSemana == outro.diaSemana && inicio.isBefore(outro.fim) && outro.inicio.isBefore(fim);
+		return diaSemana.equals(outro.diaSemana) && inicio.isBefore(outro.fim) && outro.inicio.isBefore(fim);
 	}
 
 }
