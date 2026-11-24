@@ -23,8 +23,10 @@ import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAge
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ComandoDeAlteracao;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ReagendarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.RegistrarNaoComparecimentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
+import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.TransicaoInvalidaException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
@@ -49,6 +51,8 @@ class GestaoAgendamentoControllerTest {
 	private ConcluirAgendamentoUseCase concluir;
 	@MockitoBean
 	private RegistrarNaoComparecimentoUseCase registrarNaoComparecimento;
+	@MockitoBean
+	private ReagendarAgendamentoUseCase reagendar;
 
 	private final UUID agendamentoId = UUID.randomUUID();
 
@@ -170,6 +174,42 @@ class GestaoAgendamentoControllerTest {
 		mvc.perform(acao("nao-comparecimento"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.status").value("NAO_COMPARECEU"));
+	}
+
+	// Reagendar
+
+	@Test
+	void reagendaParaONovoInicio() throws Exception {
+		given(reagendar.executar(new ReagendarAgendamentoUseCase.Comando(agendamentoId, GESTOR_ID, INICIO)))
+				.willReturn(agendamentoCom(StatusAgendamento.AGENDADO));
+
+		mvc.perform(acao("reagendar").contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{ "novoInicio": "2030-03-04T10:00:00-03:00" }
+						"""))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.inicio").value("2030-03-04T13:00:00Z"));
+	}
+
+	@Test
+	void recusaReagendamentoSemNovoInicio() throws Exception {
+		mvc.perform(acao("reagendar").contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.erros[0].campo").value("novoInicio"));
+
+		verifyNoInteractions(reagendar);
+	}
+
+	@Test
+	void reagendarParaHorarioOcupadoDevolve409() throws Exception {
+		given(reagendar.executar(new ReagendarAgendamentoUseCase.Comando(agendamentoId, GESTOR_ID, INICIO)))
+				.willThrow(new HorarioIndisponivelException());
+
+		mvc.perform(acao("reagendar").contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{ "novoInicio": "%s" }
+						""".formatted(INICIO)))
+				.andExpect(status().isConflict());
 	}
 
 }

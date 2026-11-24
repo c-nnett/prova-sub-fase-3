@@ -25,6 +25,7 @@ import br.com.fiap.agendabeleza.api.agendamentos.application.AgendamentoReposito
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.AlteracaoAgendamento;
+import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.TransicaoInvalidaException;
 import br.com.fiap.agendabeleza.api.compartilhado.application.ExecucaoSerializadaDireta;
@@ -41,6 +42,7 @@ import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Servico;
 import br.com.fiap.agendabeleza.api.profissionais.application.BloqueioAgendaRepositoryEmMemoria;
 import br.com.fiap.agendabeleza.api.profissionais.application.ProfissionalRepositoryEmMemoria;
 import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalRepository;
+import br.com.fiap.agendabeleza.api.profissionais.domain.BloqueioAgenda;
 import br.com.fiap.agendabeleza.api.profissionais.domain.PeriodoTrabalho;
 import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
 import br.com.fiap.agendabeleza.api.profissionais.domain.ServicoProfissional;
@@ -77,6 +79,8 @@ class GestaoAgendamentoUseCasesTest {
 			profissionais, estabelecimentos, relogio);
 	private final CancelarAgendamentoUseCase cancelar = new CancelarAgendamentoUseCase(agendamentos, profissionais,
 			estabelecimentos, relogio);
+	private final ReagendarAgendamentoUseCase reagendar = new ReagendarAgendamentoUseCase(agendamentos,
+			profissionais, estabelecimentos, bloqueios, execucao, relogio);
 
 	private Estabelecimento estabelecimento;
 	private Servico corte;
@@ -109,6 +113,20 @@ class GestaoAgendamentoUseCasesTest {
 	private Agendamento cancelar(Agendamento agendamento, UUID usuarioSolicitante, String motivo) {
 		return cancelar.executar(new CancelarAgendamentoUseCase.Comando(agendamento.id(), usuarioSolicitante,
 				motivo));
+	}
+
+	private Agendamento reagendar(Agendamento agendamento, UUID usuarioSolicitante, Instant novoInicio) {
+		return reagendar.executar(new ReagendarAgendamentoUseCase.Comando(agendamento.id(), usuarioSolicitante,
+				novoInicio));
+	}
+
+	private void assertReagendamentoRecusado(Agendamento agendamento, Instant novoInicio,
+			Class<? extends RuntimeException> excecaoEsperada, String mensagemEsperada) {
+		assertThatThrownBy(() -> reagendar(agendamento, CLIENTE_ID, novoInicio))
+				.isInstanceOf(excecaoEsperada)
+				.hasMessage(mensagemEsperada);
+		assertThat(agendamentos.buscarPorId(agendamento.id()).orElseThrow().inicio())
+				.isEqualTo(agendamento.inicio());
 	}
 
 	private static Clock relogioEm(Instant instante) {
@@ -244,6 +262,113 @@ class GestaoAgendamentoUseCasesTest {
 		assertThatThrownBy(() -> cancelar(cancelado, CLIENTE_ID, null))
 				.isInstanceOf(TransicaoInvalidaException.class)
 				.hasMessage("Não é possível cancelar um agendamento CANCELADO");
+	}
+
+	// Reagendar
+
+	@Test
+	void clienteReagendaAgendamentoConfirmadoParaHorarioLivre() {
+		Agendamento confirmado = confirmar(reservar(DEZ_HORAS), GESTOR_ID);
+
+		Agendamento reagendado = reagendar(confirmado, CLIENTE_ID, CATORZE_HORAS);
+
+		assertThat(reagendado.inicio()).isEqualTo(CATORZE_HORAS);
+		assertThat(reagendado.fim()).isEqualTo(CATORZE_HORAS.plusSeconds(3600));
+		assertThat(reagendado.status()).isEqualTo(StatusAgendamento.AGENDADO);
+		assertThat(ultimaAlteracao()).satisfies(alteracao -> {
+			assertThat(alteracao.statusAnterior()).isEqualTo(StatusAgendamento.CONFIRMADO);
+			assertThat(alteracao.statusNovo()).isEqualTo(StatusAgendamento.AGENDADO);
+			assertThat(alteracao.inicioAnterior()).isEqualTo(DEZ_HORAS);
+			assertThat(alteracao.inicioNovo()).isEqualTo(CATORZE_HORAS);
+			assertThat(alteracao.alteradoPor()).isEqualTo(CLIENTE_ID);
+		});
+	}
+
+	@Test
+	void reagendamentoRodaSerializadoPeloProfissional() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		reagendar(reservado, GESTOR_ID, CATORZE_HORAS);
+
+		assertThat(execucao.chaves()).containsExactly(ana.id(), ana.id());
+	}
+
+	@Test
+	void aceitaNovoHorarioQueSobrepoeOProprioHorarioAntigo() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+		Instant meiaHoraDepois = DEZ_HORAS.plusSeconds(1800);
+
+		assertThat(reagendar(reservado, CLIENTE_ID, meiaHoraDepois).inicio()).isEqualTo(meiaHoraDepois);
+	}
+
+	@Test
+	void recusaHorarioDeOutroAgendamentoComConflito() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+		reservar(CATORZE_HORAS);
+
+		assertReagendamentoRecusado(reservado, CATORZE_HORAS.plusSeconds(1800), HorarioIndisponivelException.class,
+				"O profissional já tem um agendamento nesse horário");
+	}
+
+	@Test
+	void recusaHorarioEmBloqueioDoProfissional() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+		bloqueios.salvar(BloqueioAgenda.reconstituir(UUID.randomUUID(), ana.id(), CATORZE_HORAS,
+				CATORZE_HORAS.plusSeconds(3600), "Curso"));
+
+		assertReagendamentoRecusado(reservado, CATORZE_HORAS, RegraNegocioException.class,
+				DisponibilidadeDaAgenda.PROFISSIONAL_INDISPONIVEL);
+	}
+
+	@Test
+	void recusaHorarioDeAlmoco() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		assertReagendamentoRecusado(reservado, Instant.parse("2030-03-04T15:30:00Z"), RegraNegocioException.class,
+				DisponibilidadeDaAgenda.FORA_DO_ATENDIMENTO);
+	}
+
+	@Test
+	void recusaOMesmoInicio() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		assertReagendamentoRecusado(reservado, DEZ_HORAS, RegraNegocioException.class,
+				"O novo início deve ser diferente do atual");
+	}
+
+	@Test
+	void recusaInicioNoPassado() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		assertReagendamentoRecusado(reservado, AGORA.minusSeconds(3600), RegraNegocioException.class,
+				"inicio deve estar no futuro");
+	}
+
+	@Test
+	void recusaReagendarComProfissionalInativo() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+		ana.atualizarPerfil(ana.nome(), ana.email(), null, false);
+		profissionais.salvar(ana);
+
+		assertReagendamentoRecusado(reservado, CATORZE_HORAS, RegraNegocioException.class,
+				"O profissional está inativo");
+	}
+
+	@Test
+	void recusaReagendarAgendamentoCancelado() {
+		Agendamento cancelado = cancelar(reservar(DEZ_HORAS), CLIENTE_ID, null);
+
+		assertReagendamentoRecusado(cancelado, CATORZE_HORAS, TransicaoInvalidaException.class,
+				"Não é possível reagendar um agendamento CANCELADO");
+	}
+
+	@Test
+	void profissionalNaoReagenda() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		assertThatThrownBy(() -> reagendar(reservado, USUARIO_PROFISSIONAL_ID, CATORZE_HORAS))
+				.isInstanceOf(AcessoNegadoException.class)
+				.hasMessage("Somente o cliente ou o gestor do estabelecimento podem reagendar este agendamento");
 	}
 
 	// Concluir e registrar o não comparecimento: mesmas regras, destinos diferentes
