@@ -11,7 +11,7 @@ public class HorarioIndisponivelException extends ConflitoException {
 	private static final long serialVersionUID = 1L;
 
 	public HorarioIndisponivelException() {
-		super("o profissional já tem um agendamento nesse horário");
+		super("O profissional já tem um agendamento nesse horário");
 	}
 
 }

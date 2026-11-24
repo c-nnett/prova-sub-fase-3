@@ -3,6 +3,8 @@ package br.com.fiap.agendabeleza.api.agendamentos.adapters.out.persistence;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.data.domain.Persistable;
+
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,16 +16,24 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** Linha da trilha de alterações. Somente inserção: nenhuma coluna é atualizável. */
+/**
+ * Linha da trilha de alterações. Somente inserção: nenhuma coluna é atualizável, e {@link #isNew()} é sempre
+ * verdadeiro para que o Spring Data use {@code persist}, sem consultar o id antes de gravar.
+ */
 @Entity
 @Table(name = "agendamento_historico")
 @Getter
 @Setter
 @NoArgsConstructor
-class AgendamentoHistoricoJpaEntity {
+class AgendamentoHistoricoJpaEntity implements Persistable<UUID> {
 
 	@Id
 	private UUID id;
+
+	@Override
+	public boolean isNew() {
+		return true;
+	}
 
 	@Column(name = "agendamento_id", nullable = false, updatable = false)
 	private UUID agendamentoId;

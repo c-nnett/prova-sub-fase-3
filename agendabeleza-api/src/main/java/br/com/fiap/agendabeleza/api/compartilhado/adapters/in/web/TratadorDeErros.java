@@ -3,6 +3,7 @@ package br.com.fiap.agendabeleza.api.compartilhado.adapters.in.web;
 import java.util.List;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -53,6 +54,13 @@ class TratadorDeErros extends ResponseEntityExceptionHandler {
 	ProblemDetail conflito(DataIntegrityViolationException excecao) {
 		return problema(HttpStatus.CONFLICT, "Conflito",
 				"A operação conflita com dados já cadastrados ou referencia um registro inexistente");
+	}
+
+	/** Bloqueio otimista: outra operação gravou o mesmo registro depois que ele foi lido. */
+	@ExceptionHandler(OptimisticLockingFailureException.class)
+	ProblemDetail versaoDesatualizada(OptimisticLockingFailureException excecao) {
+		return problema(HttpStatus.CONFLICT, "Conflito",
+				"O registro foi alterado por outra operação. Consulte-o de novo e repita a operação");
 	}
 
 	@Override

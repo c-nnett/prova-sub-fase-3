@@ -13,6 +13,7 @@ import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRep
 import br.com.fiap.agendabeleza.api.agendamentos.domain.AgendaProfissional;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
+import br.com.fiap.agendabeleza.api.compartilhado.application.port.ExecucaoSerializada;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
@@ -29,34 +30,42 @@ import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
  * Reserva um horário com um profissional. O estabelecimento vem do profissional, e o preço é a tarifa dele para o
  * serviço, congelada no agendamento.
  * <p>
- * O conflito com outro agendamento é verificado antes de gravar, para responder com clareza. Duas reservas
- * simultâneas no mesmo horário passam por essa verificação, e a restrição {@code agendamento_sem_conflito} recusa a
- * segunda: o adaptador também a traduz para {@link HorarioIndisponivelException}.
+ * As verificações e a gravação rodam em {@link ExecucaoSerializada}, uma reserva ou bloqueio de cada vez por
+ * profissional. Assim, uma reserva e um bloqueio simultâneos não passam juntos pelas verificações. A restrição
+ * {@code agendamento_sem_conflito} continua como garantia final entre reservas, e o adaptador a traduz para
+ * {@link HorarioIndisponivelException}.
  */
 public class CriarAgendamentoUseCase {
 
-	public static final String FORA_DO_ATENDIMENTO = "o horário está fora do atendimento do profissional";
-	public static final String PROFISSIONAL_INDISPONIVEL = "o profissional está indisponível nesse horário";
+	public static final String FORA_DO_ATENDIMENTO = "O horário está fora do atendimento do profissional";
+	public static final String PROFISSIONAL_INDISPONIVEL = "O profissional está indisponível nesse horário";
 
 	private final AgendamentoRepository agendamentos;
 	private final ProfissionalRepository profissionais;
 	private final ServicoRepository servicos;
 	private final EstabelecimentoRepository estabelecimentos;
 	private final BloqueioAgendaRepository bloqueios;
+	private final ExecucaoSerializada execucao;
 	private final Clock relogio;
 
+	@SuppressWarnings("java:S107") // Uma porta por fonte de dados da agenda, injetadas pelo construtor.
 	public CriarAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
 			ServicoRepository servicos, EstabelecimentoRepository estabelecimentos, BloqueioAgendaRepository bloqueios,
-			Clock relogio) {
+			ExecucaoSerializada execucao, Clock relogio) {
 		this.agendamentos = agendamentos;
 		this.profissionais = profissionais;
 		this.servicos = servicos;
 		this.estabelecimentos = estabelecimentos;
 		this.bloqueios = bloqueios;
+		this.execucao = execucao;
 		this.relogio = relogio;
 	}
 
 	public Agendamento executar(Comando comando) {
+		return execucao.executar(comando.profissionalId(), () -> reservar(comando));
+	}
+
+	private Agendamento reservar(Comando comando) {
 		Profissional profissional = profissionalAtivo(comando.profissionalId());
 		Servico servico = servicoDoProfissional(comando.servicoId(), profissional);
 		Estabelecimento estabelecimento = estabelecimentoAtivo(profissional.estabelecimentoId());
@@ -74,7 +83,7 @@ public class CriarAgendamentoUseCase {
 				.orElseThrow(() -> new RecursoNaoEncontradoException(
 						"Profissional " + profissionalId + " não encontrado"));
 		if (!profissional.ativo()) {
-			throw new RegraNegocioException("o profissional está inativo");
+			throw new RegraNegocioException("O profissional está inativo");
 		}
 		return profissional;
 	}
@@ -83,13 +92,13 @@ public class CriarAgendamentoUseCase {
 		Servico servico = servicos.buscarPorId(servicoId)
 				.orElseThrow(() -> new RecursoNaoEncontradoException("Serviço " + servicoId + " não encontrado"));
 		if (!servico.ativo()) {
-			throw new RegraNegocioException("o serviço está inativo");
+			throw new RegraNegocioException("O serviço está inativo");
 		}
 		if (!servico.pertenceA(profissional.estabelecimentoId())) {
-			throw new RegraNegocioException("o serviço não pertence ao estabelecimento do profissional");
+			throw new RegraNegocioException("O serviço não pertence ao estabelecimento do profissional");
 		}
 		if (!profissional.executa(servico.id())) {
-			throw new RegraNegocioException("o profissional não executa este serviço");
+			throw new RegraNegocioException("O profissional não executa o serviço");
 		}
 		return servico;
 	}
@@ -99,7 +108,7 @@ public class CriarAgendamentoUseCase {
 				.orElseThrow(() -> new RecursoNaoEncontradoException(
 						"Estabelecimento " + estabelecimentoId + " não encontrado"));
 		if (!estabelecimento.ativo()) {
-			throw new RegraNegocioException("o estabelecimento está inativo");
+			throw new RegraNegocioException("O estabelecimento está inativo");
 		}
 		return estabelecimento;
 	}

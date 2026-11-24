@@ -13,10 +13,10 @@ public class TransicaoInvalidaException extends RegraNegocioException {
 	private final StatusAgendamento statusAtual;
 
 	/**
-	 * @param acao verbo da operação recusada, completando a frase "não é possível ... um agendamento STATUS"
+	 * @param acao verbo da operação recusada, completando a frase "Não é possível ... um agendamento STATUS"
 	 */
 	public TransicaoInvalidaException(String acao, StatusAgendamento statusAtual) {
-		super("não é possível " + acao + " um agendamento " + statusAtual);
+		super("Não é possível " + acao + " um agendamento " + statusAtual);
 		this.statusAtual = statusAtual;
 	}
 

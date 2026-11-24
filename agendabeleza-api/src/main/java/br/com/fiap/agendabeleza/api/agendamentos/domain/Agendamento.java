@@ -99,7 +99,7 @@ public class Agendamento {
 		exigirTransicao(StatusAgendamento.AGENDADO, "reagendar");
 		exigirFuturo(obrigatorio(novoInicio, "novoInicio"), agora);
 		if (novoInicio.equals(inicio)) {
-			throw new RegraNegocioException("o novo início deve ser diferente do atual");
+			throw new RegraNegocioException("O novo início deve ser diferente do atual");
 		}
 		Duration duracao = Duration.between(inicio, fim);
 		Instant inicioAnterior = inicio;
@@ -115,7 +115,7 @@ public class Agendamento {
 	/** Registra o atendimento realizado. Só vale para agendamento confirmado e a partir do início. */
 	public void concluir(UUID alteradoPor, Instant agora) {
 		exigirTransicao(StatusAgendamento.CONCLUIDO, "concluir");
-		exigirInicioAlcancado(agora, "o atendimento só pode ser concluído depois do início");
+		exigirInicioAlcancado(agora, "O atendimento só pode ser concluído depois do início");
 		mudarStatus(StatusAgendamento.CONCLUIDO, "concluir", null, alteradoPor, agora);
 	}
 
@@ -123,7 +123,7 @@ public class Agendamento {
 	public void registrarNaoComparecimento(UUID alteradoPor, Instant agora) {
 		String acao = "registrar o não comparecimento de";
 		exigirTransicao(StatusAgendamento.NAO_COMPARECEU, acao);
-		exigirInicioAlcancado(agora, "o não comparecimento só pode ser registrado depois do início");
+		exigirInicioAlcancado(agora, "O não comparecimento só pode ser registrado depois do início");
 		mudarStatus(StatusAgendamento.NAO_COMPARECEU, acao, null, alteradoPor, agora);
 	}
 
