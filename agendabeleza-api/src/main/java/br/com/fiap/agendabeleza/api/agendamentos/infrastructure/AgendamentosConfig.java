@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.AgendamentosAtivosDoProfissional;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarHorariosLivresUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CriarAgendamentoUseCase;
@@ -52,6 +53,12 @@ class AgendamentosConfig {
 	@Bean
 	ListarMeusAgendamentosUseCase listarMeusAgendamentosUseCase(AgendamentoRepository agendamentos) {
 		return new ListarMeusAgendamentosUseCase(agendamentos);
+	}
+
+	@Bean
+	ConfirmarAgendamentoUseCase confirmarAgendamentoUseCase(AgendamentoRepository agendamentos,
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
+		return new ConfirmarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
 	}
 
 	@Bean
