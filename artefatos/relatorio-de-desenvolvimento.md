@@ -141,4 +141,38 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - Primeira ação do próximo dia de trabalho.
 ```
 
-Nenhum dia registrado até o momento.
+### 23/11 (segunda): criar agendamento
+
+**Resultado:** Concluído
+**Horas:** a preencher, de 2 h planejadas
+**Tarefas:** 3 de 3 planejadas
+**Pronto quando:** atendido. Um agendamento em horário ocupado é recusado com 409, pela API e em 10 reservas simultâneas (1 aceita, 9 recusadas)
+
+**Realizado**
+- `Agendamento` e a máquina de status em TDD, com as 25 combinações de transição testadas.
+- Migração com `btree_gist` e a restrição `agendamento_sem_conflito` (`EXCLUDE`), adaptador JPA com bloqueio otimista e tradução do erro `23P01` para 409.
+- `CriarAgendamentoUseCase`, `POST /agendamentos`, `GET /agendamentos/meus` e `GET /agendamentos/{id}`.
+
+**Pendente**
+- Nenhum item da meta. Confirmar, cancelar, reagendar e concluir seguem para 24/11, como planejado.
+
+**Fora do plano**
+- Integração com os bloqueios e os horários livres da `issue-2211`, que chegaram à `master` no mesmo dia. Os horários livres passaram a descontar os agendamentos, a reserva passou a respeitar os bloqueios, e o bloqueio passou a recusar agendamento ativo.
+- Correções da revisão de código: 409 para versão desatualizada, índice para a consulta de ocupações, histórico gravado sem SELECT prévio e mensagens padronizadas.
+
+**Métricas do dia**
+- Testes: a preencher com o total do CI.
+- Cobertura de `agendamentos`: 100% das linhas nos casos de uso e 99% no domínio (meta de 80%).
+
+**Desafios e soluções**
+- **Corrida entre reserva e bloqueio na agenda do mesmo profissional.**
+  - *Como apareceu:* na revisão de código do dia. A reserva lia os bloqueios e depois gravava. O bloqueio lia as reservas e depois gravava. Cada passo rodava em uma transação própria, e o `EXCLUDE` do banco só compara agendamento com agendamento. Com uma reserva e um bloqueio enviados no mesmo instante, as duas verificações passavam e as duas gravações eram aceitas. O teste `ConcorrenciaAgendaTest` reproduziu o problema: sem a correção, reserva e bloqueio foram aceitos juntos na rodada das 10h.
+  - *Solução:* a porta `ExecucaoSerializada` (`compartilhado/application/port`) executa a verificação e a gravação em uma única transação, com `pg_advisory_xact_lock` sobre o id do profissional. A segunda operação espera a primeira terminar e só então verifica, e recebe 409 (bloqueio) ou 422 (reserva). A trava é liberada no commit ou no rollback e não bloqueia profissionais diferentes. Os casos de uso continuam sem Spring, como exige o ArchUnit, e a implementação fica no adaptador.
+  - *Alternativas descartadas:* guardar bloqueios e agendamentos em uma única tabela de ocupações, sob o mesmo `EXCLUDE`, mudaria a modelagem dos dois módulos às vésperas das próximas metas. `SELECT ... FOR UPDATE` na linha do profissional também travaria quem só edita o perfil. Manter a limitação documentada deixaria uma inconsistência possível na regra central do sistema.
+
+**Riscos e decisões**
+- FKs de `agendamento` separadas para `profissional` e `servico`, sem a FK composta para `profissional_servico`, que o adaptador de profissionais regrava a cada atualização.
+- Transição de status inválida responde 422, e o 409 fica para os conflitos de horário e de versão.
+
+**Próximo passo**
+- Casos de uso e endpoints de confirmar, cancelar, reagendar, concluir e registrar não comparecimento (24/11), já usando o objeto devolvido por `salvar` e o 409 de versão desatualizada.

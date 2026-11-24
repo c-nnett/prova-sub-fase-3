@@ -36,7 +36,8 @@ erDiagram
     servico ||--o{ profissional_servico : "executado por"
     profissional ||--o{ disponibilidade_profissional : "atende em"
     profissional ||--o{ bloqueio_agenda : "bloqueia"
-    profissional_servico ||--o{ agendamento : "origina"
+    profissional ||--o{ agendamento : "atende"
+    servico ||--o{ agendamento : "reservado em"
     agendamento ||--o{ agendamento_historico : "registra"
     agendamento ||--o| avaliacao : "recebe"
     agendamento ||--o{ notificacao : "dispara"
@@ -301,16 +302,18 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | Coluna | Tipo | Restrições |
 |---|---|---|
 | `id` | `uuid` | PK |
-| `cliente_id` | `uuid` | FK `usuario` |
+| `cliente_id` | `uuid` | Sem FK: o usuário vem do cabeçalho `X-Usuario-Id` (planejamento, seção 2.1) |
 | `estabelecimento_id` | `uuid` | FK. Redundância proposital para as consultas do painel |
-| `profissional_id` | `uuid` | FK composta com `servico_id` para `profissional_servico` |
-| `servico_id` | `uuid` | Idem |
+| `profissional_id` | `uuid` | FK `profissional` |
+| `servico_id` | `uuid` | FK `servico` |
 | `inicio` | `timestamptz` | |
 | `fim` | `timestamptz` | `CHECK (fim > inicio)` |
 | `status` | `varchar(20)` | `AGENDADO`, `CONFIRMADO`, `CONCLUIDO`, `CANCELADO`, `NAO_COMPARECEU` |
 | `preco` | `numeric(10,2)` | Tarifa congelada no momento da reserva |
 | `observacoes` | `varchar(500)` | Nula |
 | `versao` | `bigint` | Bloqueio otimista |
+
+O vínculo entre profissional e serviço é validado no caso de uso, e não por uma FK composta para `profissional_servico`. O adaptador de profissionais regrava as linhas dessa tabela a cada atualização do profissional, e a FK composta faria falhar qualquer edição de um profissional com agendamentos. O preço já fica congelado no agendamento.
 
 **`agendamento_historico`**: trilha de alterações, somente inserção.
 
@@ -323,7 +326,7 @@ Colunas são `NOT NULL`, exceto quando marcadas como **nula**.
 | `inicio_anterior` | `timestamptz` | Nula, preenchida no reagendamento |
 | `inicio_novo` | `timestamptz` | Nula, preenchida no reagendamento |
 | `motivo` | `varchar(250)` | Nula |
-| `alterado_por` | `uuid` | FK `usuario` |
+| `alterado_por` | `uuid` | Sem FK, pelo mesmo motivo de `cliente_id` |
 | `ocorrido_em` | `timestamptz` | |
 
 ### 3.5 Avaliações
@@ -425,20 +428,28 @@ stateDiagram-v2
     NAO_COMPARECEU --> [*]
 ```
 
-O domínio valida essas transições, e cada uma grava uma linha em `agendamento_historico`.
+O domínio valida essas transições, e cada uma grava uma linha em `agendamento_historico`. Uma operação fora do diagrama é recusada com HTTP 422. O HTTP 409 fica reservado para o conflito de horário.
+
+O agregado `Agendamento` também valida as regras de horário que dependem só dele, recebendo o instante atual como parâmetro:
+
+- A reserva e o reagendamento exigem início no futuro. O reagendamento mantém a duração e exige um início diferente do atual.
+- Concluir e registrar o não comparecimento só valem a partir do início do atendimento.
 
 ### 4.3 Regras validadas nos casos de uso
 
 Estas regras envolvem mais de uma tabela ou dependem de horário e, por isso, não usam `CHECK`:
 
-- Um agendamento só é aceito se o horário estiver dentro do funcionamento e da disponibilidade do profissional, sem bloqueio e no futuro.
+- Um agendamento só é aceito se o horário estiver dentro do funcionamento e da disponibilidade do profissional e sem bloqueio. A exigência de início no futuro fica no domínio (seção 4.2).
+- Antes de gravar, o caso de uso verifica nesta ordem: sobreposição com agendamentos ativos (409), sobreposição com bloqueios do profissional (422) e, por fim, jornada e funcionamento (422). A restrição `agendamento_sem_conflito` continua como garantia final entre agendamentos, também com 409.
 - O `fim` é calculado como `inicio + servico.duracao_minutos`.
 - A avaliação só é permitida para agendamento `CONCLUIDO` e pelo cliente daquele agendamento. A restrição única em `agendamento_id` garante uma avaliação por atendimento.
 - O profissional e o serviço precisam pertencer ao `estabelecimento_id` informado.
 - Os serviços de um profissional (`profissional_servico`) precisam ser do mesmo estabelecimento e estar ativos. A tarifa não informada assume o `preco_base` no momento da definição.
 - Cada período de `disponibilidade_profissional` precisa caber no `horario_funcionamento` do estabelecimento naquele dia. Um dia fechado recusa qualquer período. Os períodos de um mesmo dia não podem se sobrepor, mas podem se encostar (08:00–12:00 e 12:00–18:00).
 - As especialidades de um profissional precisam existir no catálogo `especialidade`.
-- A criação de um bloqueio é recusada se houver agendamento ativo no período. Vale a partir de 23/11, com os agendamentos. Bloqueio já encerrado também é recusado.
+- A criação de um bloqueio é recusada com 409 se houver agendamento ativo no trecho do período que ainda não passou. Um bloqueio com início retroativo, como uma licença registrada no dia seguinte, não é recusado por agendamentos antigos que nunca foram concluídos. Bloqueio já encerrado também é recusado. O módulo de profissionais consulta os agendamentos pela porta `AgendamentosAtivos`, implementada no módulo de agendamentos, para que os dois módulos não dependam um do outro.
+- Os horários livres descontam os bloqueios e os agendamentos ativos.
+- Entre bloqueio e agendamento não há restrição no banco, porque o `EXCLUDE` cobre apenas agendamento contra agendamento. Para que uma reserva e um bloqueio simultâneos não passem juntos pelas verificações, as duas operações rodam com uma trava consultiva por profissional (`pg_advisory_xact_lock`, pela porta `ExecucaoSerializada`). Ela é obtida no início da transação que verifica e grava, e liberada no commit ou no rollback. Operações de profissionais diferentes não esperam umas pelas outras. O `ConcorrenciaAgendaTest` comprova o comportamento, e o relatório de desenvolvimento registra o desafio.
 - Reagendar ou cancelar marca os lembretes pendentes como `CANCELADA`. O reagendamento cria novos lembretes.
 - `nota_media` e `total_avaliacoes` são atualizados na mesma transação da avaliação, para evitar recalcular as médias em cada busca.
 
@@ -460,7 +471,7 @@ O cálculo fica em `AgendaProfissional` (`agendamentos/domain`):
 - Horários que começam antes do instante atual são descartados.
 - `estaLivre` aplica as mesmas regras a um horário qualquer, mesmo fora da grade, e é a validação usada na criação do agendamento.
 
-O caso de uso `ConsultarHorariosLivresUseCase` monta o dia no fuso do estabelecimento e busca os bloqueios que alcançam esse dia, inclusive os que começaram antes, como férias. Por enquanto, as ocupações vêm só dos bloqueios. Os agendamentos ativos entram em 23/11.
+O caso de uso `ConsultarHorariosLivresUseCase` monta o dia no fuso do estabelecimento e busca os bloqueios e os agendamentos ativos que alcançam esse dia, inclusive os bloqueios que começaram antes, como férias.
 
 ## 5. Índices
 
@@ -480,6 +491,9 @@ CREATE INDEX idx_profissional_servico_tarifa ON profissional_servico (servico_id
 -- Painel e histórico do cliente
 CREATE INDEX idx_agendamento_estab_inicio ON agendamento (estabelecimento_id, inicio);
 CREATE INDEX idx_agendamento_cliente_inicio ON agendamento (cliente_id, inicio DESC);
+
+-- Ocupações do profissional: horários livres, reserva e bloqueio
+CREATE INDEX idx_agendamento_prof_periodo ON agendamento (profissional_id, inicio, fim);
 CREATE INDEX idx_bloqueio_prof_periodo ON bloqueio_agenda (profissional_id, inicio, fim);
 
 -- Avaliações
@@ -491,7 +505,7 @@ CREATE INDEX idx_notificacao_pendente ON notificacao (enviar_em) WHERE status = 
 CREATE INDEX idx_evento_pendente ON evento_calendario (atualizado_em) WHERE acao_pendente <> 'NENHUMA';
 ```
 
-A restrição `agendamento_sem_conflito` cria um índice GiST em `(profissional_id, intervalo)`, que também atende à consulta de horários ocupados dos agendamentos ativos.
+A restrição `agendamento_sem_conflito` cria um índice GiST parcial sobre `(profissional_id, tstzrange(inicio, fim))`, que serve apenas à própria restrição. A consulta de ocupações compara as colunas `inicio` e `fim` e recebe os status como parâmetro, e por isso usa `idx_agendamento_prof_periodo`.
 
 ### Busca por distância
 
@@ -505,8 +519,10 @@ Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `
 |---|---|---|
 | `V1_1795218166967__criar_tabelas_estabelecimentos.sql` | `estabelecimento`, `foto_estabelecimento`, `horario_funcionamento`, `servico` | 21/11 |
 | `V1_1795282023552__criar_tabelas_profissionais.sql` | `profissional`, `especialidade` (com seed do catálogo), `profissional_especialidade`, `profissional_servico`, `disponibilidade_profissional`, `bloqueio_agenda` | 22/11 |
+| `V1_1795476613832__criar_tabelas_agendamentos.sql` | extensão `btree_gist`, `agendamento` com a restrição `agendamento_sem_conflito`, `agendamento_historico` | 23/11 |
+| `V1_1795485921750__criar_indice_ocupacoes_agendamento.sql` | índice `idx_agendamento_prof_periodo`, para a consulta de ocupações do profissional | 23/11 |
 
-A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: agendamentos com a extensão `btree_gist` e a restrição de conflito (23/11), notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
+A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
 
 ## 7. Funcionalidades x tabelas
 

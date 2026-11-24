@@ -27,6 +27,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.ConflitoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 import br.com.fiap.agendabeleza.api.profissionais.application.usecase.CriarBloqueioUseCase;
@@ -105,6 +106,17 @@ class BloqueioControllerTest {
 				.content("{ \"inicio\": \"2020-11-30T10:00:00Z\", \"fim\": \"2020-11-30T11:00:00Z\" }"))
 				.andExpect(status().isUnprocessableContent())
 				.andExpect(jsonPath("$.detail").value("O bloqueio já terminou"));
+	}
+
+	@Test
+	void bloqueioSobreAgendamentoAtivoDevolve409() throws Exception {
+		given(criar.executar(any())).willThrow(new ConflitoException("Há agendamento ativo no período do bloqueio"));
+
+		mvc.perform(post(URL).header(USUARIO, GESTOR_ID).contentType(MediaType.APPLICATION_JSON)
+				.content("{ \"inicio\": \"2026-11-30T10:00:00Z\", \"fim\": \"2026-11-30T11:00:00Z\" }"))
+				.andExpect(status().isConflict())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.detail").value("Há agendamento ativo no período do bloqueio"));
 	}
 
 	@Test

@@ -193,7 +193,7 @@ Prefixo `/api/v1`. A documentação é gerada pelo springdoc em `/swagger-ui.htm
 | PUT | `/profissionais/{id}/especialidades` | Gestor ou próprio | Define especialidades |
 | PUT | `/profissionais/{id}/servicos` | Gestor ou próprio | Define serviços e tarifas. Tarifa ausente assume o preço base |
 | PUT | `/profissionais/{id}/disponibilidades` | Gestor ou próprio | Define jornada semanal, dentro do funcionamento do estabelecimento |
-| POST | `/profissionais/{id}/bloqueios` | Gestor ou próprio | Cria bloqueio `[inicio, fim)`. Retorna 422 se o fim não for posterior ao início ou se o bloqueio já tiver terminado |
+| POST | `/profissionais/{id}/bloqueios` | Gestor ou próprio | Cria bloqueio `[inicio, fim)`. Retorna 422 se o fim não for posterior ao início ou se o bloqueio já tiver terminado e 409 se houver agendamento ativo no período |
 | GET | `/profissionais/{id}/bloqueios` | Gestor ou próprio | Lista os bloqueios que ainda não terminaram, ordenados pelo início |
 | DELETE | `/profissionais/{id}/bloqueios/{bloqueioId}` | Gestor ou próprio | Remove bloqueio. Retorna 404 se ele não existir ou for de outro profissional |
 
@@ -203,10 +203,10 @@ Os bloqueios recebem `inicio` e `fim` com fuso (`2026-11-30T10:00:00-03:00`) e s
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/profissionais/{id}/horarios-livres?servicoId&data` | Público | Lista horários disponíveis. Retorna 404 se o profissional, o serviço ou o estabelecimento não existir e 422 se algum deles estiver inativo, se o serviço for de outro estabelecimento ou se o profissional não o executar |
-| POST | `/agendamentos` | Cliente | Cria agendamento. Retorna 409 em caso de conflito |
-| GET | `/agendamentos/meus` | Cliente | Lista histórico próprio |
-| GET | `/agendamentos/{id}` | Partes envolvidas | Consulta detalhes |
+| GET | `/profissionais/{id}/horarios-livres?servicoId&data` | Público | Lista horários disponíveis, descontando bloqueios e agendamentos ativos. Retorna 404 se o profissional, o serviço ou o estabelecimento não existir e 422 se algum deles estiver inativo, se o serviço for de outro estabelecimento ou se o profissional não o executar |
+| POST | `/agendamentos` | Cliente | Cria agendamento com a tarifa do profissional. Retorna 404 para profissional ou serviço inexistente, 422 para horário no passado, fora do atendimento ou em bloqueio do profissional e 409 para horário ocupado |
+| GET | `/agendamentos/meus` | Cliente | Lista histórico próprio, do mais recente para o mais antigo |
+| GET | `/agendamentos/{id}` | Partes envolvidas | Consulta detalhes. Cliente, gestor ou profissional; os demais recebem 403 |
 | POST | `/agendamentos/{id}/confirmar` | Gestor ou profissional | Confirma |
 | POST | `/agendamentos/{id}/reagendar` | Cliente ou gestor | Altera o horário |
 | POST | `/agendamentos/{id}/cancelar` | Cliente ou gestor | Cancela |

@@ -129,9 +129,9 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 #### Seg 23/11 (2h): criar agendamento
 
-- [ ] Em TDD: `Agendamento` e a máquina de status, com transições válidas e inválidas.
-- [ ] Criar migração `V3`, com a restrição `EXCLUDE` contra conflito de horário.
-- [ ] Implementar `CriarAgendamentoUseCase`, com tradução do erro `23P01`, e publicar `POST /agendamentos` e `GET /agendamentos/meus`.
+- [x] Em TDD: `Agendamento` e a máquina de status, com transições válidas e inválidas.
+- [x] Criar migração `V3`, com a restrição `EXCLUDE` contra conflito de horário.
+- [x] Implementar `CriarAgendamentoUseCase`, com tradução do erro `23P01`, e publicar `POST /agendamentos` e `GET /agendamentos/meus`.
 
 **Pronto quando:** um agendamento em horário ocupado é recusado com 409.
 

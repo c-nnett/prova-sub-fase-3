@@ -5,8 +5,10 @@ import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import br.com.fiap.agendabeleza.api.compartilhado.application.port.ExecucaoSerializada;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.EstabelecimentoRepository;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.ServicoRepository;
+import br.com.fiap.agendabeleza.api.profissionais.application.port.AgendamentosAtivos;
 import br.com.fiap.agendabeleza.api.profissionais.application.port.BloqueioAgendaRepository;
 import br.com.fiap.agendabeleza.api.profissionais.application.port.EspecialidadeRepository;
 import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalRepository;
@@ -73,8 +75,10 @@ class ProfissionaisConfig {
 
 	@Bean
 	CriarBloqueioUseCase criarBloqueioUseCase(EstabelecimentoRepository estabelecimentos,
-			ProfissionalRepository profissionais, BloqueioAgendaRepository bloqueios, Clock relogio) {
-		return new CriarBloqueioUseCase(estabelecimentos, profissionais, bloqueios, relogio);
+			ProfissionalRepository profissionais, BloqueioAgendaRepository bloqueios,
+			AgendamentosAtivos agendamentosAtivos, ExecucaoSerializada execucao, Clock relogio) {
+		return new CriarBloqueioUseCase(estabelecimentos, profissionais, bloqueios, agendamentosAtivos, execucao,
+				relogio);
 	}
 
 	@Bean

@@ -8,7 +8,9 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.AgendaProfissional;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
@@ -24,8 +26,8 @@ import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
 
 /**
  * Consulta pública dos horários livres de um profissional para um serviço em uma data, no fuso do
- * estabelecimento. Cruza jornada, funcionamento e bloqueios com {@link AgendaProfissional}. Os agendamentos ativos
- * entram nas ocupações junto com o módulo de agendamentos.
+ * estabelecimento. Cruza jornada e funcionamento com {@link AgendaProfissional}, descontando como ocupações os
+ * bloqueios e os agendamentos ativos do profissional.
  */
 public class ConsultarHorariosLivresUseCase {
 
@@ -33,15 +35,17 @@ public class ConsultarHorariosLivresUseCase {
 	private final EstabelecimentoRepository estabelecimentos;
 	private final ServicoRepository servicos;
 	private final BloqueioAgendaRepository bloqueios;
+	private final AgendamentoRepository agendamentos;
 	private final Clock relogio;
 
 	public ConsultarHorariosLivresUseCase(ProfissionalRepository profissionais,
 			EstabelecimentoRepository estabelecimentos, ServicoRepository servicos,
-			BloqueioAgendaRepository bloqueios, Clock relogio) {
+			BloqueioAgendaRepository bloqueios, AgendamentoRepository agendamentos, Clock relogio) {
 		this.profissionais = profissionais;
 		this.estabelecimentos = estabelecimentos;
 		this.servicos = servicos;
 		this.bloqueios = bloqueios;
+		this.agendamentos = agendamentos;
 		this.relogio = relogio;
 	}
 
@@ -64,8 +68,9 @@ public class ConsultarHorariosLivresUseCase {
 		ZoneId fuso = estabelecimento.timezone();
 		Intervalo dia = new Intervalo(data.atStartOfDay(fuso).toInstant(),
 				data.plusDays(1).atStartOfDay(fuso).toInstant());
-		List<Intervalo> ocupacoes = bloqueios.listarNoPeriodo(profissional.id(), dia).stream()
-				.map(BloqueioAgenda::periodo)
+		List<Intervalo> ocupacoes = Stream.concat(
+				bloqueios.listarNoPeriodo(profissional.id(), dia).stream().map(BloqueioAgenda::periodo),
+				agendamentos.ocupacoesDoProfissional(profissional.id(), dia).stream())
 				.toList();
 		AgendaProfissional agenda = AgendaProfissional.doDia(data, fuso,
 				estabelecimento.horarioEm(data.getDayOfWeek()), profissional.jornada(), ocupacoes);
