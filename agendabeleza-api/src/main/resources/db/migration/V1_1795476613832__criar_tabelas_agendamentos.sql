@@ -37,10 +37,6 @@ CREATE TABLE agendamento (
 CREATE INDEX idx_agendamento_estab_inicio ON agendamento (estabelecimento_id, inicio);
 CREATE INDEX idx_agendamento_cliente_inicio ON agendamento (cliente_id, inicio DESC);
 
--- Ocupações do profissional em um período (horários livres, reserva e bloqueio). A consulta compara as colunas
--- inicio e fim com o status como parâmetro, então o GiST parcial da restrição, sobre tstzrange, não a atende.
-CREATE INDEX idx_agendamento_prof_periodo ON agendamento (profissional_id, inicio, fim);
-
 -- Trilha de alterações, somente inserção. Uma linha por reserva ou mudança de status.
 CREATE TABLE agendamento_historico (
     id              uuid          PRIMARY KEY,
