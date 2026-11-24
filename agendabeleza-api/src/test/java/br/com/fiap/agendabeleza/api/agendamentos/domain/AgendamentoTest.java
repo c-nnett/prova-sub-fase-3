@@ -225,7 +225,7 @@ class AgendamentoTest {
 				.hasMessage("inicio deve estar no futuro");
 		assertThatThrownBy(() -> agendamento.reagendar(INICIO, CLIENTE_ID, AGORA))
 				.isInstanceOf(RegraNegocioException.class)
-				.hasMessage("o novo início deve ser diferente do atual");
+				.hasMessage("O novo início deve ser diferente do atual");
 		assertThat(agendamento.inicio()).isEqualTo(INICIO);
 		assertThat(agendamento.alteracoesPendentes()).isEmpty();
 	}
@@ -260,10 +260,10 @@ class AgendamentoTest {
 
 		assertThatThrownBy(() -> agendamento.concluir(GESTOR_ID, AGORA))
 				.isInstanceOf(RegraNegocioException.class)
-				.hasMessage("o atendimento só pode ser concluído depois do início");
+				.hasMessage("O atendimento só pode ser concluído depois do início");
 		assertThatThrownBy(() -> agendamento.registrarNaoComparecimento(GESTOR_ID, AGORA))
 				.isInstanceOf(RegraNegocioException.class)
-				.hasMessage("o não comparecimento só pode ser registrado depois do início");
+				.hasMessage("O não comparecimento só pode ser registrado depois do início");
 		assertThat(agendamento.status()).isEqualTo(StatusAgendamento.CONFIRMADO);
 	}
 
@@ -288,7 +288,7 @@ class AgendamentoTest {
 
 		assertThatThrownBy(() -> agendamento.confirmar(GESTOR_ID, AGORA))
 				.isInstanceOf(TransicaoInvalidaException.class)
-				.hasMessage("não é possível confirmar um agendamento CONFIRMADO");
+				.hasMessage("Não é possível confirmar um agendamento CONFIRMADO");
 	}
 
 	@Test
@@ -297,10 +297,10 @@ class AgendamentoTest {
 
 		assertThatThrownBy(() -> agendamento.concluir(GESTOR_ID, DEPOIS_DO_INICIO))
 				.isInstanceOf(TransicaoInvalidaException.class)
-				.hasMessage("não é possível concluir um agendamento AGENDADO");
+				.hasMessage("Não é possível concluir um agendamento AGENDADO");
 		assertThatThrownBy(() -> agendamento.registrarNaoComparecimento(GESTOR_ID, DEPOIS_DO_INICIO))
 				.isInstanceOf(TransicaoInvalidaException.class)
-				.hasMessage("não é possível registrar o não comparecimento de um agendamento AGENDADO");
+				.hasMessage("Não é possível registrar o não comparecimento de um agendamento AGENDADO");
 		assertThat(agendamento.status()).isEqualTo(StatusAgendamento.AGENDADO);
 	}
 
@@ -327,7 +327,7 @@ class AgendamentoTest {
 				.isInstanceOf(RegraNegocioException.class)
 				.isInstanceOfSatisfying(TransicaoInvalidaException.class,
 						erro -> assertThat(erro.statusAtual()).isEqualTo(StatusAgendamento.CANCELADO))
-				.hasMessage("não é possível cancelar um agendamento CANCELADO");
+				.hasMessage("Não é possível cancelar um agendamento CANCELADO");
 	}
 
 	private static void assertTransicaoInvalida(ThrowingCallable operacao) {

@@ -23,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -135,7 +136,20 @@ class AgendamentoControllerTest {
 				.andExpect(status().isConflict())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.title").value("Conflito"))
-				.andExpect(jsonPath("$.detail").value("o profissional já tem um agendamento nesse horário"));
+				.andExpect(jsonPath("$.detail").value("O profissional já tem um agendamento nesse horário"));
+	}
+
+	@Test
+	void versaoDesatualizadaDevolve409() throws Exception {
+		given(consultar.executar(agendamento.id(), CLIENTE_ID)).willThrow(
+				new ObjectOptimisticLockingFailureException(Agendamento.class, agendamento.id()));
+
+		mvc.perform(get(URL + "/" + agendamento.id()).header(USUARIO, CLIENTE_ID))
+				.andExpect(status().isConflict())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.title").value("Conflito"))
+				.andExpect(jsonPath("$.detail").value(
+						"O registro foi alterado por outra operação. Consulte-o de novo e repita a operação"));
 	}
 
 	@Test

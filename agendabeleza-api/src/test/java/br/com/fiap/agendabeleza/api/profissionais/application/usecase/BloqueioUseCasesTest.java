@@ -18,6 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import br.com.fiap.agendabeleza.api.compartilhado.application.ExecucaoSerializadaDireta;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.ConflitoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
@@ -46,11 +47,12 @@ class BloqueioUseCasesTest {
 
 	/** Agendamentos ativos simulados, no lugar do módulo de agendamentos. */
 	private final List<Ocupacao> agendados = new ArrayList<>();
+	private final ExecucaoSerializadaDireta execucao = new ExecucaoSerializadaDireta();
 
 	private final CriarBloqueioUseCase criar = new CriarBloqueioUseCase(estabelecimentos, profissionais, bloqueios,
 			(profissionalId, periodo) -> agendados.stream().anyMatch(ocupacao ->
 					ocupacao.profissionalId().equals(profissionalId) && ocupacao.intervalo().sobrepoe(periodo)),
-			relogio);
+			execucao, relogio);
 
 	private record Ocupacao(UUID profissionalId, Intervalo intervalo) {
 	}
@@ -77,8 +79,36 @@ class BloqueioUseCasesTest {
 
 			assertThatThrownBy(() -> bloqueioDaAna())
 					.isInstanceOf(ConflitoException.class)
-					.hasMessage("há agendamento ativo no período do bloqueio");
+					.hasMessage("Há agendamento ativo no período do bloqueio");
 			assertThat(bloqueios.listarVigentes(ana.id(), AGORA)).isEmpty();
+		}
+
+		@Test
+		void bloqueioRodaSerializadoPeloProfissional() {
+			bloqueioDaAna();
+
+			assertThat(execucao.chaves()).containsExactly(ana.id());
+		}
+
+		@Test
+		void bloqueioIniciadoNoPassadoIgnoraAgendamentosQueJaTerminaram() {
+			Instant ontem = AGORA.minusSeconds(86400);
+			agendados.add(new Ocupacao(ana.id(), new Intervalo(ontem.plusSeconds(3600), ontem.plusSeconds(7200))));
+
+			BloqueioAgenda bloqueio = criar.executar(new CriarBloqueioUseCase.Comando(ana.id(), GESTOR_ID, ontem,
+					AGORA.plusSeconds(86400), "Licença médica"));
+
+			assertThat(bloqueios.buscarPorId(bloqueio.id())).isPresent();
+		}
+
+		@Test
+		void bloqueioIniciadoNoPassadoRecusaAgendamentoAtivoNoTrechoFuturo() {
+			Instant ontem = AGORA.minusSeconds(86400);
+			agendados.add(new Ocupacao(ana.id(), new Intervalo(AGORA.plusSeconds(3600), AGORA.plusSeconds(7200))));
+
+			assertThatThrownBy(() -> criar.executar(new CriarBloqueioUseCase.Comando(ana.id(), GESTOR_ID, ontem,
+					AGORA.plusSeconds(86400), "Licença médica")))
+					.isInstanceOf(ConflitoException.class);
 		}
 
 		@Test

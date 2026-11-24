@@ -129,7 +129,7 @@ class AgendamentoPersistenciaTest {
 		assertThatThrownBy(() -> agendamentos.salvar(sobreposto))
 				.isInstanceOf(HorarioIndisponivelException.class)
 				.isInstanceOf(ConflitoException.class)
-				.hasMessage("o profissional já tem um agendamento nesse horário");
+				.hasMessage("O profissional já tem um agendamento nesse horário");
 		assertThat(agendamentos.buscarPorId(sobreposto.id())).isEmpty();
 		assertThat(historico.findByAgendamentoIdOrderByOcorridoEm(sobreposto.id())).isEmpty();
 	}

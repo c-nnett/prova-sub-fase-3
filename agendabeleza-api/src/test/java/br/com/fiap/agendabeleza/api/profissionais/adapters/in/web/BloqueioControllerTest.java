@@ -110,13 +110,13 @@ class BloqueioControllerTest {
 
 	@Test
 	void bloqueioSobreAgendamentoAtivoDevolve409() throws Exception {
-		given(criar.executar(any())).willThrow(new ConflitoException("há agendamento ativo no período do bloqueio"));
+		given(criar.executar(any())).willThrow(new ConflitoException("Há agendamento ativo no período do bloqueio"));
 
 		mvc.perform(post(URL).header(USUARIO, GESTOR_ID).contentType(MediaType.APPLICATION_JSON)
 				.content("{ \"inicio\": \"2026-11-30T10:00:00Z\", \"fim\": \"2026-11-30T11:00:00Z\" }"))
 				.andExpect(status().isConflict())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-				.andExpect(jsonPath("$.detail").value("há agendamento ativo no período do bloqueio"));
+				.andExpect(jsonPath("$.detail").value("Há agendamento ativo no período do bloqueio"));
 	}
 
 	@Test

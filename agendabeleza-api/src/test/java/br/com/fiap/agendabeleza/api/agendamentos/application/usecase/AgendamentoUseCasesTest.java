@@ -22,6 +22,7 @@ import br.com.fiap.agendabeleza.api.agendamentos.application.AgendamentoReposito
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
+import br.com.fiap.agendabeleza.api.compartilhado.application.ExecucaoSerializadaDireta;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
@@ -57,9 +58,10 @@ class AgendamentoUseCasesTest {
 	private final EstabelecimentoRepositoryEmMemoria estabelecimentos = new EstabelecimentoRepositoryEmMemoria();
 	private final BloqueioAgendaRepositoryEmMemoria bloqueios = new BloqueioAgendaRepositoryEmMemoria();
 	private final Clock relogio = Clock.fixed(AGORA, ZoneOffset.UTC);
+	private final ExecucaoSerializadaDireta execucao = new ExecucaoSerializadaDireta();
 
 	private final CriarAgendamentoUseCase criar = new CriarAgendamentoUseCase(agendamentos, profissionais, servicos,
-			estabelecimentos, bloqueios, relogio);
+			estabelecimentos, bloqueios, execucao, relogio);
 	private final AgendamentosAtivosDoProfissional agendamentosAtivos =
 			new AgendamentosAtivosDoProfissional(agendamentos);
 	private final ListarMeusAgendamentosUseCase listarMeus = new ListarMeusAgendamentosUseCase(agendamentos);
@@ -126,6 +128,13 @@ class AgendamentoUseCasesTest {
 	}
 
 	@Test
+	void reservaRodaSerializadaPeloProfissional() {
+		reservar(DEZ_HORAS);
+
+		assertThat(execucao.chaves()).containsExactly(ana.id());
+	}
+
+	@Test
 	void recusaProfissionalInexistente() {
 		UUID inexistente = UUID.randomUUID();
 
@@ -149,14 +158,14 @@ class AgendamentoUseCasesTest {
 	void recusaProfissionalInativo() {
 		ana.atualizarPerfil(ana.nome(), ana.email(), null, false);
 
-		assertRecusa(DEZ_HORAS, "o profissional está inativo");
+		assertRecusa(DEZ_HORAS, "O profissional está inativo");
 	}
 
 	@Test
 	void recusaServicoInativo() {
 		corte.atualizar(corte.nome(), null, corte.categoria(), 60, corte.precoBase(), false);
 
-		assertRecusa(DEZ_HORAS, "o serviço está inativo");
+		assertRecusa(DEZ_HORAS, "O serviço está inativo");
 	}
 
 	@Test
@@ -167,7 +176,7 @@ class AgendamentoUseCasesTest {
 		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, ana.id(),
 				deOutro.id(), DEZ_HORAS, null)))
 				.isInstanceOf(RegraNegocioException.class)
-				.hasMessage("o serviço não pertence ao estabelecimento do profissional");
+				.hasMessage("O serviço não pertence ao estabelecimento do profissional");
 	}
 
 	@Test
@@ -178,7 +187,7 @@ class AgendamentoUseCasesTest {
 		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, ana.id(),
 				escova.id(), DEZ_HORAS, null)))
 				.isInstanceOf(RegraNegocioException.class)
-				.hasMessage("o profissional não executa este serviço");
+				.hasMessage("O profissional não executa o serviço");
 	}
 
 	@Test
@@ -186,7 +195,7 @@ class AgendamentoUseCasesTest {
 		estabelecimentos.salvar(Estabelecimento.reconstituir(estabelecimento.id(), GESTOR_ID, "Salão Bela Vista",
 				null, endereco(), null, false, List.of(), estabelecimento.horarios()));
 
-		assertRecusa(DEZ_HORAS, "o estabelecimento está inativo");
+		assertRecusa(DEZ_HORAS, "O estabelecimento está inativo");
 	}
 
 	@Test
@@ -224,7 +233,7 @@ class AgendamentoUseCasesTest {
 
 		assertThatThrownBy(() -> reservar(OUTRO_CLIENTE_ID, DEZ_HORAS.plusSeconds(1800)))
 				.isInstanceOf(HorarioIndisponivelException.class)
-				.hasMessage("o profissional já tem um agendamento nesse horário");
+				.hasMessage("O profissional já tem um agendamento nesse horário");
 		assertThat(agendamentos.total()).isOne();
 	}
 
