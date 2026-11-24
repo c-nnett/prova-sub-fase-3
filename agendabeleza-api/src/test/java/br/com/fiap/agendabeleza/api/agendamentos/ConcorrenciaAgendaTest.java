@@ -27,6 +27,7 @@ import org.springframework.context.annotation.Import;
 
 import br.com.fiap.agendabeleza.api.TestcontainersConfiguration;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CriarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.DisponibilidadeDaAgenda;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.ConflitoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
@@ -123,7 +124,7 @@ class ConcorrenciaAgendaTest {
 							erro -> assertThat(erro).isInstanceOf(ConflitoException.class)
 									.hasMessage("Há agendamento ativo no período do bloqueio"),
 							erro -> assertThat(erro).isInstanceOf(RegraNegocioException.class)
-									.hasMessage(CriarAgendamentoUseCase.PROFISSIONAL_INDISPONIVEL)));
+									.hasMessage(DisponibilidadeDaAgenda.PROFISSIONAL_INDISPONIVEL)));
 		}
 	}
 
