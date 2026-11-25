@@ -144,7 +144,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 #### Qua 25/11 (2h): confirmações e lembretes. Marco M2
 
-- [ ] Criar `NotificacaoGateway` com adaptador SMTP (Mailpit local).
+- [x] Criar `NotificacaoGateway` com adaptador SMTP (Mailpit local). Feito em 25/11: porta em `notificacoes/application/port`, `NotificacaoSmtpAdapter` com `JavaMailSender` e teste do adaptador com GreenMail.
 - [ ] Enviar confirmação para cliente e profissional depois do commit da reserva, do cancelamento e do reagendamento.
 - [ ] Criar job `@Scheduled` de lembretes para 24h antes, com marcação de envio para não repetir.
 - [ ] Testar com GreenMail.

@@ -156,6 +156,7 @@ src/main/java/br/com/fiap/agendabeleza/api/
 - **Entidade de domínio x entidade JPA:** são classes separadas, convertidas no adaptador. Há mais código, mas o domínio fica independente e testável sem banco.
 - **Casos de uso sem Spring:** são classes Java comuns, registradas como beans em `infrastructure`.
 - **Transações:** a porta `GerenciadorTransacao` isola o Spring, e sua implementação usa `TransactionTemplate`. Assim, `application` não precisa de `@Transactional`.
+- **E-mail:** a porta `NotificacaoGateway` (`notificacoes/application/port`) recebe uma `Mensagem` já validada. O `NotificacaoSmtpAdapter` envia por SMTP com o `JavaMailSender` e traduz `MailException` em `FalhaNoEnvioException`, então o núcleo não conhece o Spring. Localmente o servidor é o Mailpit (`spring.mail.host`/`port`).
 - **Eventos entre módulos:** a porta `PublicadorEventos` usa o `ApplicationEventPublisher` do Spring. O ouvinte de notificações roda de forma síncrona, na mesma transação, para gravar a outbox.
 
 ## 5. API REST
@@ -320,6 +321,7 @@ sequenceDiagram
 ```
 
 - Cada reserva gera quatro registros: confirmação e lembrete, para o cliente e para o profissional.
+- O job entrega cada e-mail pela porta `NotificacaoGateway`. Uma `FalhaNoEnvioException` conta como tentativa.
 - O envio é "pelo menos uma vez": se a task cair depois de enviar e antes de atualizar o status, o e-mail pode se repetir. Esse risco é aceitável para este domínio.
 
 ### 6.3 Sincronização com Google Calendar

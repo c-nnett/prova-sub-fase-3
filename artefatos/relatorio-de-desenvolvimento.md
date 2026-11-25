@@ -253,6 +253,36 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 **Próximo passo**
 - Abrir o PR da `issue-2411` (funcionalidade 6 completa). No merge com a `issue-2511`, ordenar os registros diários 23/11 → 24/11 → 25/11.
 
+### 25/11 (quarta): confirmações e lembretes (registro parcial, branch `issue-2511`)
+
+**Resultado:** Parcial, 1 de 4 metas até aqui
+**Horas:** a preencher, de 2 h planejadas
+**Tarefas:** 1 de 4 planejadas
+**Pronto quando:** ainda não avaliado. Depende do envio após a reserva (2ª meta)
+
+**Realizado**
+- `NotificacaoGateway` (porta) com a `Mensagem` validada no domínio e o `NotificacaoSmtpAdapter` (`JavaMailSender`), apontado para o Mailpit do Docker Compose.
+- Teste do adaptador com GreenMail: confere remetente, destinatário, assunto e corpo, e traduz a falha de conexão em `FalhaNoEnvioException`.
+
+**Pendente**
+- Envio após o commit da reserva, do cancelamento e do reagendamento; job de lembrete 24 h antes; teste do fluxo com GreenMail.
+
+**Fora do plano**
+- Validação de e-mail extraída do `Profissional` para `Validacoes.email`, reaproveitada pela `Mensagem` (sem duplicar a expressão regular).
+- Merge da `master` (gestão e painel da `issue-2411`) na `issue-2511` antes da 2ª meta, que liga os e-mails ao cancelamento e ao reagendamento.
+
+**Métricas do dia**
+- Testes: 407, todos verdes no `./mvnw verify` da `issue-2511` antes do merge da `master`.
+- Cobertura das classes novas de `notificacoes`: 100% das linhas (meta de 80%).
+
+**Riscos e decisões**
+- O e-mail do cliente vai ser um campo obrigatório `emailCliente` no `POST /agendamentos`, guardado na outbox `notificacao` (`destinatario_email`). Não há tabela de usuários depois do corte de escopo de 20/11, e o agregado `Agendamento` não precisa mudar.
+- O GreenMail traz o JUnit 4; ele foi excluído no `pom.xml`, porque os testes usam só a extensão do JUnit 5.
+- O Actuator passa a checar o SMTP no `/actuator/health`. Sem servidor de e-mail, a saúde fica `DOWN`. Avaliar antes do deploy de 28/11.
+
+**Próximo passo**
+- Gravar as notificações na transação da reserva, do cancelamento e do reagendamento, e enviar as pendentes por job.
+
 ### 26/11 (quinta): avaliações (feita em 25/11, adiantada; branch `issue-2611`)
 
 **Resultado:** Concluído um dia antes do planejado. **Funcionalidade 4 pronta**
