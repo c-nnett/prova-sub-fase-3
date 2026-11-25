@@ -33,4 +33,7 @@ public interface AgendamentoRepository {
 	/** Agendamentos do cliente, do início mais recente para o mais antigo. */
 	List<Agendamento> listarDoCliente(UUID clienteId);
 
+	/** Agenda do painel do estabelecimento, em ordem de início. */
+	List<Agendamento> listarDoEstabelecimento(FiltroDaAgenda filtro);
+
 }

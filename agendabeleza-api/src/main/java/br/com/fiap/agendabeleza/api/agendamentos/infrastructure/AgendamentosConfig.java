@@ -10,12 +10,14 @@ import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.Agendamento
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarAgendaDoEstabelecimentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarHorariosLivresUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CriarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ListarMeusAgendamentosUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ReagendarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.RegistrarNaoComparecimentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ResumirAgendaDoEstabelecimentoUseCase;
 import br.com.fiap.agendabeleza.api.compartilhado.application.port.ExecucaoSerializada;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.EstabelecimentoRepository;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.ServicoRepository;
@@ -95,6 +97,18 @@ class AgendamentosConfig {
 	ConsultarAgendamentoUseCase consultarAgendamentoUseCase(AgendamentoRepository agendamentos,
 			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos) {
 		return new ConsultarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos);
+	}
+
+	@Bean
+	ConsultarAgendaDoEstabelecimentoUseCase consultarAgendaDoEstabelecimentoUseCase(
+			EstabelecimentoRepository estabelecimentos, AgendamentoRepository agendamentos, Clock relogio) {
+		return new ConsultarAgendaDoEstabelecimentoUseCase(estabelecimentos, agendamentos, relogio);
+	}
+
+	@Bean
+	ResumirAgendaDoEstabelecimentoUseCase resumirAgendaDoEstabelecimentoUseCase(
+			ConsultarAgendaDoEstabelecimentoUseCase consultarAgenda) {
+		return new ResumirAgendaDoEstabelecimentoUseCase(consultarAgenda);
 	}
 
 }

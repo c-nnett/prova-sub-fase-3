@@ -6,12 +6,14 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
 
-interface AgendamentoJpaRepository extends JpaRepository<AgendamentoJpaEntity, UUID> {
+interface AgendamentoJpaRepository extends JpaRepository<AgendamentoJpaEntity, UUID>,
+		JpaSpecificationExecutor<AgendamentoJpaEntity> {
 
 	/** Mesma semântica de {@code [)} da restrição: intervalos que só se encostam não se cruzam. */
 	@Query("""

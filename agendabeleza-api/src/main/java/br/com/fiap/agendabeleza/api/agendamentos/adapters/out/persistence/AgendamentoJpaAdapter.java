@@ -7,10 +7,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.FiltroDaAgenda;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.AlteracaoAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
@@ -31,6 +33,8 @@ class AgendamentoJpaAdapter implements AgendamentoRepository {
 	private static final List<StatusAgendamento> STATUS_QUE_OCUPAM = Arrays.stream(StatusAgendamento.values())
 			.filter(StatusAgendamento::ocupaHorario)
 			.toList();
+
+	private static final Sort ORDEM_DE_INICIO = Sort.by("inicio");
 
 	private final AgendamentoJpaRepository repositorio;
 	private final AgendamentoHistoricoJpaRepository historico;
@@ -77,6 +81,14 @@ class AgendamentoJpaAdapter implements AgendamentoRepository {
 	@Transactional(readOnly = true)
 	public List<Agendamento> listarDoCliente(UUID clienteId) {
 		return repositorio.findByClienteIdOrderByInicioDesc(clienteId).stream()
+				.map(AgendamentoJpaAdapter::paraDominio)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Agendamento> listarDoEstabelecimento(FiltroDaAgenda filtro) {
+		return repositorio.findAll(AgendamentoEspecificacoes.da(filtro), ORDEM_DE_INICIO).stream()
 				.map(AgendamentoJpaAdapter::paraDominio)
 				.toList();
 	}
