@@ -18,11 +18,11 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.NotaMedia;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.Validacoes;
 
 /**
  * Agregado do profissional: perfil, especialidades, serviços com tarifa e jornada semanal. Pertence a um único
@@ -30,7 +30,6 @@ import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
  */
 public class Profissional {
 
-	private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 	private static final Comparator<PeriodoTrabalho> ORDEM_JORNADA = Comparator
 			.comparing(PeriodoTrabalho::diaSemana)
 			.thenComparing(PeriodoTrabalho::inicio);
@@ -78,7 +77,7 @@ public class Profissional {
 
 	public void atualizarPerfil(String nome, String email, String bio, boolean ativo) {
 		String novoNome = textoObrigatorio(nome, "nome", 120);
-		String novoEmail = validarEmail(email);
+		String novoEmail = Validacoes.email(email, "email");
 		String novaBio = textoOpcional(bio, "bio", 2000);
 
 		this.nome = novoNome;
@@ -207,14 +206,6 @@ public class Profissional {
 	/** Jornada ordenada de segunda a domingo e, em cada dia, pelo início. */
 	public List<PeriodoTrabalho> jornada() {
 		return Collections.unmodifiableList(jornada);
-	}
-
-	private static String validarEmail(String email) {
-		String texto = textoObrigatorio(email, "email", 180);
-		if (!EMAIL.matcher(texto).matches()) {
-			throw new RegraNegocioException("email inválido");
-		}
-		return texto;
 	}
 
 }
