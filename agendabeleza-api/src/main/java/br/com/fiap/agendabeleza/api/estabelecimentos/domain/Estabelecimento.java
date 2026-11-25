@@ -83,8 +83,16 @@ public class Estabelecimento {
 	}
 
 	public void garantirGestor(UUID usuarioId) {
+		garantirGestor(usuarioId, "alterá-lo");
+	}
+
+	/**
+	 * @param acao o que só o gestor pode fazer, como "consultar o painel"
+	 * @throws AcessoNegadoException se o usuário não for o gestor
+	 */
+	public void garantirGestor(UUID usuarioId, String acao) {
 		if (!gestorId.equals(usuarioId)) {
-			throw new AcessoNegadoException("Somente o gestor do estabelecimento pode alterá-lo");
+			throw new AcessoNegadoException("Somente o gestor do estabelecimento pode " + acao);
 		}
 	}
 
