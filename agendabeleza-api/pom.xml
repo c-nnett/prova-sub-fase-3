@@ -35,6 +35,8 @@
 		<cucumber.version>8.1.0</cucumber.version>
 		<!-- O Boot 4 não gerencia o RestAssured. A linha 6.x usa o mesmo Groovy 5 do Boot. -->
 		<rest-assured.version>6.3.0</rest-assured.version>
+		<!-- Servidor SMTP em memória para os testes. A linha 2.x usa o Jakarta Mail gerenciado pelo Boot. -->
+		<greenmail.version>2.1.15</greenmail.version>
 		<jacoco.version>0.8.16</jacoco.version>
 		<jacoco.cobertura-minima>0.80</jacoco.cobertura-minima>
 		<sonar-maven-plugin.version>5.9.0.7382</sonar-maven-plugin.version>
@@ -81,6 +83,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springdoc</groupId>
@@ -166,6 +172,19 @@
 			<artifactId>rest-assured</artifactId>
 			<version>${rest-assured.version}</version>
 			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.icegreen</groupId>
+			<artifactId>greenmail-junit5</artifactId>
+			<version>${greenmail.version}</version>
+			<scope>test</scope>
+			<exclusions>
+				<!-- O GreenMail traz o JUnit 4 para a GreenMailRule; aqui só se usa a extensão do JUnit 5. -->
+				<exclusion>
+					<groupId>junit</groupId>
+					<artifactId>junit</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 	</dependencies>
 
