@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import br.com.fiap.agendabeleza.api.TestcontainersConfiguration;
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.FiltroDaAgenda;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
@@ -225,6 +227,52 @@ class AgendamentoPersistenciaTest {
 		assertThat(agendamentos.listarDoCliente(clienteId))
 				.extracting(Agendamento::id)
 				.containsExactly(tarde.id(), cedo.id());
+	}
+
+	private Agendamento gravarComStatus(Estabelecimento dono, Profissional profissional, Instant inicio,
+			StatusAgendamento status) {
+		return agendamentos.salvar(Agendamento.reconstituir(UUID.randomUUID(), UUID.randomUUID(), dono.id(),
+				profissional.id(), corte.id(), inicio, inicio.plus(Duration.ofMinutes(30)), status,
+				new BigDecimal("95.00"), null, null));
+	}
+
+	private List<UUID> idsDaAgenda(Intervalo periodo, Set<StatusAgendamento> status, UUID profissionalId) {
+		return agendamentos.listarDoEstabelecimento(
+				new FiltroDaAgenda(estabelecimento.id(), periodo, status, profissionalId))
+				.stream().map(Agendamento::id).toList();
+	}
+
+	@Test
+	void agendaDoEstabelecimentoTrazOsQueIniciamNoPeriodoEmOrdemDeInicio() {
+		Intervalo periodo = new Intervalo(DEZ_HORAS, DEZ_HORAS.plus(Duration.ofHours(8)));
+		Agendamento tarde = gravarComStatus(estabelecimento, ana, DEZ_HORAS.plus(Duration.ofHours(4)),
+				StatusAgendamento.AGENDADO);
+		Agendamento noInicio = gravarComStatus(estabelecimento, bia, DEZ_HORAS, StatusAgendamento.CONFIRMADO);
+		gravarComStatus(estabelecimento, ana, DEZ_HORAS.minus(Duration.ofMinutes(15)), StatusAgendamento.AGENDADO);
+		gravarComStatus(estabelecimento, ana, periodo.fim(), StatusAgendamento.AGENDADO);
+		Estabelecimento outroEstabelecimento = estabelecimentos.salvar(Estabelecimento.cadastrar(
+				UUID.randomUUID(), "Outro Salão", null, endereco(), null));
+		gravarComStatus(outroEstabelecimento, bia, DEZ_HORAS.plus(Duration.ofHours(1)), StatusAgendamento.AGENDADO);
+
+		assertThat(idsDaAgenda(periodo, Set.of(), null)).containsExactly(noInicio.id(), tarde.id());
+	}
+
+	@Test
+	void agendaDoEstabelecimentoFiltraPorStatusEProfissional() {
+		Intervalo periodo = new Intervalo(DEZ_HORAS, DEZ_HORAS.plus(Duration.ofHours(8)));
+		Agendamento agendadoDaAna = gravarComStatus(estabelecimento, ana, DEZ_HORAS, StatusAgendamento.AGENDADO);
+		Agendamento canceladoDaAna = gravarComStatus(estabelecimento, ana, DEZ_HORAS.plus(Duration.ofHours(1)),
+				StatusAgendamento.CANCELADO);
+		Agendamento confirmadoDaBia = gravarComStatus(estabelecimento, bia, DEZ_HORAS.plus(Duration.ofHours(2)),
+				StatusAgendamento.CONFIRMADO);
+
+		assertThat(idsDaAgenda(periodo, Set.of(StatusAgendamento.CANCELADO, StatusAgendamento.CONFIRMADO), null))
+				.containsExactly(canceladoDaAna.id(), confirmadoDaBia.id());
+		assertThat(idsDaAgenda(periodo, Set.of(), ana.id()))
+				.containsExactly(agendadoDaAna.id(), canceladoDaAna.id());
+		assertThat(idsDaAgenda(periodo, Set.of(StatusAgendamento.AGENDADO), ana.id()))
+				.containsExactly(agendadoDaAna.id());
+		assertThat(idsDaAgenda(periodo, Set.of(StatusAgendamento.AGENDADO), bia.id())).isEmpty();
 	}
 
 	@Test
