@@ -354,6 +354,7 @@ O vínculo entre profissional e serviço é validado no caso de uso, e não por 
 | `id` | `uuid` | PK |
 | `agendamento_id` | `uuid` | FK |
 | `tipo` | `varchar(20)` | `CONFIRMACAO`, `LEMBRETE`, `REAGENDAMENTO`, `CANCELAMENTO` |
+| `papel` | `varchar(20)` | `CLIENTE` ou `PROFISSIONAL`. Incluída em 25/11: o e-mail do cliente só existe na outbox, e o cancelamento e o reagendamento o leem da notificação de papel `CLIENTE` |
 | `destinatario_email` | `varchar(180)` | |
 | `assunto` | `varchar(200)` | |
 | `corpo` | `text` | |
@@ -525,6 +526,7 @@ Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `
 | `V1_1795282023552__criar_tabelas_profissionais.sql` | `profissional`, `especialidade` (com seed do catálogo), `profissional_especialidade`, `profissional_servico`, `disponibilidade_profissional`, `bloqueio_agenda` | 22/11 |
 | `V1_1795476613832__criar_tabelas_agendamentos.sql` | extensão `btree_gist`, `agendamento` com a restrição `agendamento_sem_conflito`, `agendamento_historico` | 23/11 |
 | `V1_1795485921750__criar_indice_ocupacoes_agendamento.sql` | índice `idx_agendamento_prof_periodo`, para a consulta de ocupações do profissional | 23/11 |
+| `V1_1795618800000__criar_tabela_notificacao.sql` | `notificacao` (outbox, com a coluna `papel`), índices `idx_notificacao_pendente` (parcial, `status = 'PENDENTE'`) e `idx_notificacao_agendamento_papel` | 25/11 |
 | `V1_1795657196611__criar_tabela_avaliacao.sql` | `avaliacao` (UK `agendamento_id`, `CHECK` das notas de 1 a 5), índices `idx_avaliacao_estab` e `idx_avaliacao_prof` | 26/11 |
 
 A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.

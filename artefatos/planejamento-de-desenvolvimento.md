@@ -38,7 +38,7 @@ Estas trocas substituem decisões da [Arquitetura do Sistema](arquitetura-do-sis
 | Antes | Agora | Motivo |
 |---|---|---|
 | OAuth2 e sincronização com a API do Google Calendar | Feed iCalendar (`.ics`) por profissional e por cliente, com URL secreta | Google Calendar e Outlook assinam o mesmo feed. Atende aos dois sem OAuth, sem tokens e sem projeto no Google Cloud |
-| Outbox com job e `SKIP LOCKED` | E-mail enviado depois do commit (`@TransactionalEventListener` + `@Async`) e job `@Scheduled` para lembretes | Menos tabelas e jobs, com o mesmo comportamento visível |
+| Outbox com job e `SKIP LOCKED` | ~~E-mail enviado depois do commit (`@TransactionalEventListener` + `@Async`) e job `@Scheduled` para lembretes~~ **Revisto em 25/11:** outbox `notificacao` gravada na transação do agendamento e um único job `@Scheduled` para confirmações e lembretes, sem `SKIP LOCKED` (uma instância só) | A outbox não perde o e-mail se a aplicação cair depois do commit, dá novas tentativas e já guarda o e-mail do cliente, que não tem cadastro. O mesmo job serve aos lembretes da meta seguinte |
 | AWS ECS com Terraform, ALB, CloudFront e RDS | Docker Compose local e plataforma em nuvem gratuita (Render, Railway ou similar) com PostgreSQL gerenciado | O enunciado aceita "uma opção gratuita". Sem custo e sem infraestrutura como código |
 | Fotos em S3/MinIO | Fotos como URLs no cadastro | Tira o MinIO e o gateway de armazenamento |
 | Busca com `pg_trgm` e raio de distância | Consultas com JPA Specification: nome, cidade, bairro, serviço, nota, faixa de preço e disponibilidade | Atende ao item 5 sem extensão do banco nem geolocalização |
@@ -145,7 +145,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 #### Qua 25/11 (2h): confirmações e lembretes. Marco M2
 
 - [x] Criar `NotificacaoGateway` com adaptador SMTP (Mailpit local). Feito em 25/11: porta em `notificacoes/application/port`, `NotificacaoSmtpAdapter` com `JavaMailSender` e teste do adaptador com GreenMail.
-- [ ] Enviar confirmação para cliente e profissional depois do commit da reserva, do cancelamento e do reagendamento.
+- [x] Enviar confirmação para cliente e profissional depois do commit da reserva, do cancelamento e do reagendamento. Feito em 25/11: outbox `notificacao` na mesma transação, porta `AvisosDoAgendamento` e job de envio a cada minuto. O job genérico entrou nesta meta; a próxima fica só com os lembretes.
 - [ ] Criar job `@Scheduled` de lembretes para 24h antes, com marcação de envio para não repetir.
 - [ ] Testar com GreenMail.
 

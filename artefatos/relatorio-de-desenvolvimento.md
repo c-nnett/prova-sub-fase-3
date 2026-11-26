@@ -255,33 +255,48 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 ### 25/11 (quarta): confirmações e lembretes (registro parcial, branch `issue-2511`)
 
-**Resultado:** Parcial, 1 de 4 metas até aqui
+**Resultado:** Parcial, 2 de 4 metas até aqui
 **Horas:** a preencher, de 2 h planejadas
-**Tarefas:** 1 de 4 planejadas
-**Pronto quando:** ainda não avaliado. Depende do envio após a reserva (2ª meta)
+**Tarefas:** 2 de 4 planejadas
+**Pronto quando:** atendido nos testes para a confirmação. Uma reserva grava duas notificações (cliente e profissional), e o job as envia pelo gateway. A conferência manual no Mailpit fica para a meta do GreenMail. A parte do lembrete de agendamento cancelado depende da 3ª meta
 
 **Realizado**
 - `NotificacaoGateway` (porta) com a `Mensagem` validada no domínio e o `NotificacaoSmtpAdapter` (`JavaMailSender`), apontado para o Mailpit do Docker Compose.
 - Teste do adaptador com GreenMail: confere remetente, destinatário, assunto e corpo, e traduz a falha de conexão em `FalhaNoEnvioException`.
+- Outbox `notificacao` (migração nova), com o agregado `Notificacao` (pendente, enviada, falha após 5 tentativas) e o texto de cada tipo em `TipoNotificacao`, no fuso do estabelecimento.
+- Porta `AvisosDoAgendamento`, declarada em `agendamentos` e implementada por `AvisosPorEmail` em `notificacoes`. A reserva, o cancelamento e o reagendamento avisam cliente e profissional dentro da mesma transação da gravação.
+- `EnviarNotificacoesPendentesUseCase` e o job `@Scheduled` (a cada minuto, desligado nos testes).
+- `emailCliente` obrigatório no `POST /agendamentos` (400 se ausente ou inválido).
 
 **Pendente**
-- Envio após o commit da reserva, do cancelamento e do reagendamento; job de lembrete 24 h antes; teste do fluxo com GreenMail.
+- Lembrete 24 h antes, com cancelamento dos lembretes pendentes ao cancelar ou reagendar (3ª meta).
+- Teste do fluxo com GreenMail e conferência no Mailpit (4ª meta).
 
 **Fora do plano**
 - Validação de e-mail extraída do `Profissional` para `Validacoes.email`, reaproveitada pela `Mensagem` (sem duplicar a expressão regular).
 - Merge da `master` (gestão e painel da `issue-2411`) na `issue-2511` antes da 2ª meta, que liga os e-mails ao cancelamento e ao reagendamento.
+- O job genérico de envio, previsto para a 3ª meta, entrou na 2ª.
 
 **Métricas do dia**
-- Testes: 407, todos verdes no `./mvnw verify` da `issue-2511` antes do merge da `master`.
-- Cobertura das classes novas de `notificacoes`: 100% das linhas (meta de 80%).
+- Testes: 519, todos verdes no `./mvnw verify`, com as regras de cobertura do JaCoCo atendidas.
+- Cobertura das classes novas de `notificacoes` e das portas novas de `agendamentos`: 100% das linhas (meta de 80%).
+
+**Desafios e soluções**
+- **E-mail que não pode desfazer nem sair antes da reserva.**
+  - *Como apareceu:* o e-mail precisa sair só se a reserva for gravada, mas um servidor de e-mail fora do ar não pode recusar a reserva. Enviar dentro da transação prende a reserva ao SMTP; enviar depois do commit em memória (`@TransactionalEventListener` + `@Async`, como previa o corte de 20/11) perde o e-mail se a aplicação cair entre o commit e o envio, e não tem onde guardar o e-mail do cliente para os avisos seguintes.
+  - *Solução:* **outbox** gravada na mesma transação, dentro da `ExecucaoSerializada` que já protegia a reserva. Um job envia as pendentes com novas tentativas. O teste de concorrência comprova o rollback junto: de cinco reservas simultâneas, só a aceita deixa notificações. O cancelamento passou a rodar na `ExecucaoSerializada` para ter a mesma transação.
+- **Três avisos com o mesmo fluxo.**
+  - *Solução:* um gancho `depoisDeGravar` no **Template Method** `AlteracaoDeAgendamentoUseCase`, sobrescrito só pelo cancelamento e pelo reagendamento. No módulo de notificações, `AvisosPorEmail` concentra o fluxo comum, e cada `TipoNotificacao` é a **Strategy** do próprio texto.
 
 **Riscos e decisões**
-- O e-mail do cliente vai ser um campo obrigatório `emailCliente` no `POST /agendamentos`, guardado na outbox `notificacao` (`destinatario_email`). Não há tabela de usuários depois do corte de escopo de 20/11, e o agregado `Agendamento` não precisa mudar.
+- O e-mail do cliente é um campo obrigatório `emailCliente` no `POST /agendamentos`, guardado na outbox `notificacao` (`destinatario_email`, coluna `papel = CLIENTE`). Não há tabela de usuários depois do corte de escopo de 20/11, e o agregado `Agendamento` não mudou. Agendamento sem notificação do cliente (anterior à migração) avisa só o profissional.
+- O corte de 20/11 trocava a outbox por envio em memória depois do commit; a decisão foi revista (planejamento, seção 2.1). Sem `SKIP LOCKED`, porque roda uma instância só.
+- A dependência entre módulos segue o padrão de `AgendamentosAtivos`: quem consome declara a porta (`agendamentos`), e quem sabe fazer implementa (`notificacoes`).
 - O GreenMail traz o JUnit 4; ele foi excluído no `pom.xml`, porque os testes usam só a extensão do JUnit 5.
 - O Actuator passa a checar o SMTP no `/actuator/health`. Sem servidor de e-mail, a saúde fica `DOWN`. Avaliar antes do deploy de 28/11.
 
 **Próximo passo**
-- Gravar as notificações na transação da reserva, do cancelamento e do reagendamento, e enviar as pendentes por job.
+- Lembretes: gravar `LEMBRETE` para início − 24 h na reserva e no reagendamento, e marcar como `CANCELADA` os pendentes do agendamento cancelado ou reagendado.
 
 ### 26/11 (quinta): avaliações (feita em 25/11, adiantada; branch `issue-2611`)
 

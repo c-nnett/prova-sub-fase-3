@@ -206,7 +206,7 @@ Os bloqueios recebem `inicio` e `fim` com fuso (`2026-11-30T10:00:00-03:00`) e s
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
 | GET | `/profissionais/{id}/horarios-livres?servicoId&data` | Público | Lista horários disponíveis, descontando bloqueios e agendamentos ativos. Retorna 404 se o profissional, o serviço ou o estabelecimento não existir e 422 se algum deles estiver inativo, se o serviço for de outro estabelecimento ou se o profissional não o executar |
-| POST | `/agendamentos` | Cliente | Cria agendamento com a tarifa do profissional. Retorna 404 para profissional ou serviço inexistente, 422 para horário no passado, fora do atendimento ou em bloqueio do profissional e 409 para horário ocupado |
+| POST | `/agendamentos` | Cliente | Cria agendamento com a tarifa do profissional e registra a confirmação por e-mail para o cliente (`emailCliente`, obrigatório) e para o profissional. Retorna 400 para campo ausente ou `emailCliente` inválido, 404 para profissional ou serviço inexistente, 422 para horário no passado, fora do atendimento ou em bloqueio do profissional e 409 para horário ocupado |
 | GET | `/agendamentos/meus` | Cliente | Lista histórico próprio, do mais recente para o mais antigo |
 | GET | `/agendamentos/{id}` | Partes envolvidas | Consulta detalhes. Cliente, gestor ou profissional; os demais recebem 403 |
 | POST | `/agendamentos/{id}/confirmar` | Gestor ou profissional | Confirma um agendamento `AGENDADO`. Retorna 422 para os demais status |
@@ -309,8 +309,8 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant Mail as NotificacaoGateway
 
-    loop A cada minuto
-        Job->>DB: SELECT pendentes vencidas FOR UPDATE SKIP LOCKED
+    loop A cada minuto (fixedDelay)
+        Job->>DB: SELECT pendentes com enviar_em vencido (até 50)
         Job->>Mail: enviar e-mail
         alt Sucesso
             Job->>DB: status = ENVIADA
@@ -320,7 +320,11 @@ sequenceDiagram
     end
 ```
 
-- Cada reserva gera quatro registros: confirmação e lembrete, para o cliente e para o profissional.
+- **Como ficou implementado (25/11):** a reserva (`CriarAgendamentoUseCase`), o cancelamento e o reagendamento pedem o aviso pela porta `AvisosDoAgendamento` (`agendamentos/application/port`) **dentro** da `ExecucaoSerializada`, depois de gravar. A porta é implementada por `AvisosPorEmail` (`notificacoes`), que grava uma notificação para o cliente e outra para o profissional. Se a reserva for recusada ou sofrer rollback, a outbox volta junto.
+- O cancelamento passou a rodar em `ExecucaoSerializada` para ter uma transação; a trava por profissional só o faz esperar uma reserva ou bloqueio do mesmo profissional em andamento.
+- Sem `SKIP LOCKED`: roda uma instância só, e o `fixedDelay` impede duas rodadas juntas. Com mais de uma instância, a consulta precisaria de `FOR UPDATE SKIP LOCKED`.
+- O e-mail do cliente chega só na reserva (`emailCliente`) e fica em `notificacao.destinatario_email`, de papel `CLIENTE`. Os avisos seguintes o leem de lá.
+- Cada reserva vai gerar quatro registros quando os lembretes entrarem: confirmação e lembrete, para o cliente e para o profissional.
 - O job entrega cada e-mail pela porta `NotificacaoGateway`. Uma `FalhaNoEnvioException` conta como tentativa.
 - O envio é "pelo menos uma vez": se a task cair depois de enviar e antes de atualizar o status, o e-mail pode se repetir. Esse risco é aceitável para este domínio.
 
