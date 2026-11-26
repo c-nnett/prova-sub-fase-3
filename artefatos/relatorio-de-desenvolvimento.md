@@ -527,6 +527,7 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Métricas do dia**
 - Busca: 12.270 requisições, p95 24 ms. Horários livres: 12.178, p95 32 ms. Reservas distintas: 1.800 aceitas, p95 32 ms. Disputa: 1 × 201 e 99 × 409. Nenhum erro inesperado.
+- Outbox depois das rodadas: 7.304 notificações, 702 enviadas e 2.950 confirmações pendentes (ver Riscos).
 - `./mvnw verify` da API não mudou: 747 testes, todos passando.
 
 **Desafios e soluções**
@@ -547,7 +548,7 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - Na disputa, o 201 saiu em 143 ms, e os 409 tiveram mediana de 820 ms e máximo de 1.235 ms. As 100 reservas do mesmo profissional entram em fila na trava consultiva (`pg_advisory_xact_lock`), e cada uma espera a anterior terminar a transação. É a serialização projetada para reserva × bloqueio. Com profissionais diferentes, a fila some, como mostra o p95 de 32 ms das reservas distintas.
 - A busca por trecho do nome, sem índice (risco anotado em 26/11), ficou em p95 de 24 ms. Com o volume do projeto, o `LIKE '%trecho%'` não é gargalo.
 - A carga foi reduzida para o ambiente local (seção 5), e os números valem para ele. A nuvem gratuita não é medida.
-- Cada reserva grava 4 notificações na outbox: as 1.800 reservas geraram cerca de 7.200 e-mails enviados ao Mailpit pelo job.
+- **A vazão da outbox ficou abaixo da carga de reservas.** Cada reserva grava 4 notificações (2 confirmações e 2 lembretes). As rodadas de 26/11 deixaram 7.304 na outbox. Minutos depois, só 702 confirmações tinham saído, e 2.950 continuavam pendentes; os 3.652 lembretes são para 2031. O job envia 50 por rodada, com intervalo de 1 minuto (cerca de 0,8 e-mail por segundo), e 30 reservas por segundo geram 60 confirmações por segundo. A reserva não é afetada, porque a outbox desacopla o envio, mas a confirmação atrasa. Ajustes possíveis, fora do escopo agora: lote maior, intervalo menor ou envio em paralelo, este último exigindo `SKIP LOCKED` para não duplicar e-mails. Fica como limitação no Relatório Técnico.
 - Não há README na raiz do repositório. O item de 29/11 que manda testar o README em um clone limpo depende de escrevê-lo antes.
 
 **Próximo passo**
