@@ -1,0 +1,7 @@
+# O estado guarda a senha do banco gerada pelo Terraform: nunca vai para o Git.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+crash.log
