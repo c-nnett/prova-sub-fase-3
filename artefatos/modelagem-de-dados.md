@@ -24,7 +24,8 @@ erDiagram
     usuario ||--o{ estabelecimento : "gerencia"
     usuario |o--o| profissional : "acessa como"
     usuario ||--o{ agendamento : "reserva"
-    usuario ||--o{ integracao_calendario : "autoriza"
+    usuario ||--o| assinatura_calendario : "assina como cliente"
+    profissional ||--o| assinatura_calendario : "tem agenda assinada"
     estabelecimento ||--o{ foto_estabelecimento : "possui"
     estabelecimento ||--o{ horario_funcionamento : "abre em"
     estabelecimento ||--o{ servico : "oferece"
@@ -41,8 +42,6 @@ erDiagram
     agendamento ||--o{ agendamento_historico : "registra"
     agendamento ||--o| avaliacao : "recebe"
     agendamento ||--o{ notificacao : "dispara"
-    agendamento ||--o{ evento_calendario : "sincroniza"
-    integracao_calendario ||--o{ evento_calendario : "contém"
 
     usuario {
         uuid id PK
@@ -157,20 +156,12 @@ erDiagram
         varchar status
         int tentativas
     }
-    integracao_calendario {
+    assinatura_calendario {
         uuid id PK
-        uuid usuario_id FK
-        varchar provedor
-        text access_token_cifrado
-        text refresh_token_cifrado
-        varchar status
-    }
-    evento_calendario {
-        uuid id PK
-        uuid agendamento_id FK
-        uuid integracao_id FK
-        varchar id_evento_externo
-        varchar acao_pendente
+        varchar papel
+        uuid titular_id
+        char token_hash UK
+        timestamptz criada_em
     }
 ```
 
@@ -366,30 +357,19 @@ O vínculo entre profissional e serviço é validado no caso de uso, e não por 
 
 ### 3.7 Calendário
 
-**`integracao_calendario`**: autorização OAuth2 concedida por um cliente ou profissional.
+O OAuth2 com a API do Google (tabelas `integracao_calendario` e `evento_calendario`) foi cortado em 20/11 (planejamento, seção 2.1). No lugar, o Google Calendar e o Outlook assinam um feed iCalendar por URL secreta. Os eventos não são gravados: o feed é montado a cada leitura a partir de `agendamento`, então não há fila de sincronização.
+
+**`assinatura_calendario`**: direito de ler o feed de um profissional ou de um cliente. Há no máximo uma por titular; emitir outra troca o token, e a URL anterior deixa de funcionar.
 
 | Coluna | Tipo | Restrições |
 |---|---|---|
 | `id` | `uuid` | PK |
-| `usuario_id` | `uuid` | FK. Único com `provedor` |
-| `provedor` | `varchar(20)` | `GOOGLE`. O campo permite incluir Outlook depois |
-| `access_token_cifrado` | `text` | AES-GCM |
-| `refresh_token_cifrado` | `text` | AES-GCM |
-| `expira_em` | `timestamptz` | Validade do access token |
-| `calendario_id` | `varchar(200)` | Padrão `primary` |
-| `status` | `varchar(20)` | `ATIVA` ou `REVOGADA` |
+| `papel` | `varchar(20)` | `CLIENTE` ou `PROFISSIONAL`. Único com `titular_id` |
+| `titular_id` | `uuid` | `profissional.id` ou o `cliente_id` dos agendamentos. Sem FK: o cliente não tem tabela, e a coluna atende aos dois papéis |
+| `token_hash` | `char(64)` | Único. SHA-256 do token em hexadecimal; o token em claro só aparece na resposta da emissão |
+| `criada_em` | `timestamptz` | Momento da emissão |
 
-**`evento_calendario`**: vínculo entre o agendamento e o evento no provedor externo. Também funciona como fila de sincronização.
-
-| Coluna | Tipo | Restrições |
-|---|---|---|
-| `id` | `uuid` | PK |
-| `agendamento_id` | `uuid` | FK. Único com `integracao_id` |
-| `integracao_id` | `uuid` | FK |
-| `id_evento_externo` | `varchar(200)` | Nula até a primeira sincronização |
-| `acao_pendente` | `varchar(20)` | `CRIAR`, `ATUALIZAR`, `REMOVER` ou `NENHUMA` |
-| `tentativas` | `int` | Padrão 0 |
-| `ultimo_erro` | `text` | Nula |
+A troca do token apaga a linha anterior e grava a nova na mesma transação, com `delete` em JPQL executado na hora: o delete derivado do Spring Data só agenda a remoção, e o Hibernate grava os inserts antes dos deletes, o que esbarraria na restrição única do titular. Duas emissões simultâneas do mesmo titular disputam essa restrição, e a segunda recebe 409. O feed lê os agendamentos do titular que terminam a partir de 30 dias atrás, com as consultas `listarDoProfissionalDesde` e `listarDoClienteDesde` do `AgendamentoRepository`.
 
 ## 4. Regras de integridade
 
@@ -504,7 +484,9 @@ CREATE INDEX idx_avaliacao_prof ON avaliacao (profissional_id, criado_em DESC);
 
 -- Filas processadas pelos jobs
 CREATE INDEX idx_notificacao_pendente ON notificacao (enviar_em) WHERE status = 'PENDENTE';
-CREATE INDEX idx_evento_pendente ON evento_calendario (atualizado_em) WHERE acao_pendente <> 'NENHUMA';
+
+-- Feed do calendário: as restrições únicas assinatura_calendario_token_uk (leitura do feed pelo hash)
+-- e assinatura_calendario_titular_uk (troca do token) já criam os índices necessários.
 ```
 
 A busca não usa `pg_trgm` (planejamento, seção 2.1): nome do estabelecimento e nome do serviço são buscados por trecho com `lower(...) LIKE '%trecho%'`, que não aproveita índice B-tree. Com o volume do projeto, a consulta é limitada pelos outros filtros (cidade, categoria) e pela paginação. Cidade e bairro são comparados com `lower(...)`, a mesma expressão do índice `idx_estabelecimento_cidade_bairro`.
@@ -528,8 +510,9 @@ Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `
 | `V1_1795618800000__criar_tabela_notificacao.sql` | `notificacao` (outbox, com a coluna `papel`), índices `idx_notificacao_pendente` (parcial, `status = 'PENDENTE'`) e `idx_notificacao_agendamento_papel` | 25/11 |
 | `V1_1795657196611__criar_tabela_avaliacao.sql` | `avaliacao` (UK `agendamento_id`, `CHECK` das notas de 1 a 5), índices `idx_avaliacao_estab` e `idx_avaliacao_prof` | 26/11 |
 | `V1_1795662281145__criar_indices_busca.sql` | índices da busca: `idx_estabelecimento_cidade_bairro` (`lower(cidade), lower(bairro)`, parcial `ativo`), `idx_estabelecimento_nota` (`nota_media DESC NULLS LAST`, parcial `ativo`) e `idx_servico_categoria` (`estabelecimento_id, categoria`, parcial `ativo`). A faixa de preço usa o `idx_profissional_servico_tarifa`, criado com os profissionais | 27/11 |
+| `V1_1795709428698__criar_tabela_assinatura_calendario.sql` | `assinatura_calendario` (UK `papel, titular_id` e UK `token_hash`, `CHECK` do papel), para o feed `.ics` com token secreto | 28/11 |
 
-A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. A busca lê essas tabelas por entidades JPA somente leitura do próprio módulo `busca` (`@Immutable`), sem gravar nelas. A próxima migração prevista é a do token do feed `.ics`. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
+A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. A busca lê essas tabelas por entidades JPA somente leitura do próprio módulo `busca` (`@Immutable`), sem gravar nelas. O token do feed `.ics` ganhou a tabela `assinatura_calendario` (seção 3.7). A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
 
 ## 7. Funcionalidades x tabelas
 
@@ -541,4 +524,4 @@ A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separ
 | 4. Avaliações e comentários | `avaliacao`, além dos agregados em `estabelecimento` e `profissional` |
 | 5. Busca e filtragem | `estabelecimento`, `servico`, `profissional_servico`, `disponibilidade_profissional`, `agendamento` |
 | 6. Gerenciamento de agendamentos | `agendamento`, `agendamento_historico` |
-| 7. Integração com calendários | `integracao_calendario`, `evento_calendario` |
+| 7. Integração com calendários | `assinatura_calendario`, com leitura de `agendamento`, `servico`, `estabelecimento` e `profissional` para montar o feed |

@@ -396,3 +396,62 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - PR da `issue-2711`. Depois, 28/11: feed `.ics`, carga e deploy.
+
+### 28/11 (sábado): feed `.ics` do calendário (1ª meta do dia, feita em 26/11, adiantada; branch `issue-2811`)
+
+**Resultado:** Concluído no código e verificado no Docker Compose local. **Funcionalidade 7 pronta**, com uma pendência: a assinatura no Google Calendar
+**Horas:** a preencher, de 1,5 h planejadas para a meta
+**Tarefas:** 1 de 1, com a verificação no Google adiada para depois do deploy
+**Pronto quando:** atendido em parte. O feed sai em iCalendar válido, por profissional e por cliente, com token secreto. Falta ver os eventos no Google Calendar
+
+**Realizado**
+- `POST /api/v1/calendario/assinaturas/profissionais/{profissionalId}` (gestor ou o próprio profissional) e `POST /api/v1/calendario/assinaturas/cliente` devolvem 201 com `{ url, webcal }`. `GET /api/v1/calendario/feeds/{token}.ics` é público e responde `text/calendar; charset=utf-8`.
+- Domínio: `TokenDoCalendario` (256 bits de `SecureRandom`, Base64 para URL, guardado só como SHA-256), `AssinaturaDoCalendario`, `EventoDoCalendario`, `SituacaoDoEvento` (o cancelado sai do feed) e `FeedDoCalendario`.
+- Aplicação: a Strategy `TitularDoCalendario`, com `CalendarioDoProfissional` e `CalendarioDoCliente`, e os casos de uso `EmitirAssinaturaDoCalendarioUseCase` e `GerarFeedDoCalendarioUseCase`. `MontagemDosEventos` lê cada cadastro uma vez por feed. O `AgendamentoRepository` ganhou `listarDoProfissionalDesde` e `listarDoClienteDesde`.
+- Adaptadores: `CalendarioIcsAdapter`, que implementa o `CalendarioGateway` e escreve o RFC 5545 à mão, mais a persistência JPA da assinatura e o `CalendarioController`.
+- Migração `V1_1795709428698__criar_tabela_assinatura_calendario.sql`.
+- `server.forward-headers-strategy=framework`, para a URL do feed sair com o endereço público atrás de túnel ou da nuvem.
+- TDD em três pares `test:` → `feat:` (domínio, aplicação, adaptadores).
+- Verificação manual no Compose:
+  - o cliente recebe 403 ao tentar assinar a agenda da profissional;
+  - o feed traz 2 eventos (10h e 15h de Brasília saem como 13:00Z e 18:00Z), sem o cancelado, com CRLF, nenhuma linha acima de 75 octetos e UTF-8 válido;
+  - o token antigo responde 404 depois da troca.
+
+**Pendente**
+- Assinar a URL no Google Calendar (Outras agendas, Do URL) e registrar uma captura de tela. O túnel rápido do Cloudflare (`cloudflared tunnel --url`) falhou duas vezes, com 429 e timeout em `api.trycloudflare.com`. O teste fica para depois do deploy em nuvem, com a URL gerada de novo pelo endereço público.
+
+**Fora do plano**
+- Nenhum.
+
+**Métricas do dia**
+- Testes: 743 no `./mvnw verify`, todos passando (eram 690), com as regras de cobertura do JaCoCo atendidas.
+- Cobertura de linhas: 94,6% em `calendario.domain`, 96,9% em `calendario.application.usecase` e 100% nos adaptadores e na configuração do calendário.
+
+**Desafios e soluções**
+- **Autenticar quem o calendário não identifica.**
+  - *Como apareceu:* o Google Calendar e o Outlook buscam a URL sem mandar cabeçalhos, então o `X-Usuario-Id` não serve no feed.
+  - *Solução:* a URL leva um token de 256 bits, e o banco guarda só o SHA-256 dele, então um vazamento da tabela não abre nenhum feed. Token malformado, desconhecido e trocado recebem o mesmo 404. A revogação é emitir outro token, que apaga o anterior.
+- **Trocar o token sem violar a restrição única.**
+  - *Como apareceu:* apagar a assinatura antiga e gravar a nova com os métodos derivados do Spring Data falharia, porque o Hibernate grava os inserts antes dos deletes no flush.
+  - *Solução:* um `delete` em JPQL com `@Modifying`, executado na hora, seguido do `save`, na mesma transação.
+- **iCalendar sem biblioteca.**
+  - *Como apareceu:* o RFC 5545 exige CRLF, escape de `\`, `;`, `,` e quebras, e dobra das linhas acima de 75 octetos. Uma dobra contada em caracteres, e não em bytes, ultrapassa o limite com acentos.
+  - *Solução:* o adaptador anda por code point e soma os octetos em UTF-8 de cada um. O espaço da continuação conta na linha seguinte. O teste confere o limite em bytes e a reversão da dobra.
+- **Fuso e alterações de evento.**
+  - *Como apareceu:* cada estabelecimento tem um fuso, e um reagendamento não pode duplicar o evento na agenda assinada.
+  - *Solução:* horários em UTC, sem `VTIMEZONE`, com o `UID` fixo por agendamento e o `SEQUENCE` igual à versão do agendamento.
+- **URL errada atrás de proxy.**
+  - *Como apareceu:* atrás de túnel ou de plataforma em nuvem, a URL montada pela requisição sairia com o host e o esquema internos do contêiner.
+  - *Solução:* `server.forward-headers-strategy=framework`, que faz valer os cabeçalhos `X-Forwarded-*`.
+- **Porta local ocupada.**
+  - *Como apareceu:* na verificação manual, a porta 8080 respondia 401 com `WWW-Authenticate: Bearer`, mas a API não tem autenticação. Era outro projeto ocupando a porta.
+  - *Solução:* a API do Compose estava na 8082, conforme o `.env`; a verificação foi refeita nela.
+
+**Riscos e decisões**
+- O feed tem os agendamentos que terminam a partir de 30 dias atrás, sem limite à frente. Os cancelados saem do feed, e com isso somem da agenda assinada.
+- O Google Calendar atualiza agendas assinadas a cada várias horas e ignora o `REFRESH-INTERVAL`. Uma alteração não aparece na hora (limitação a registrar no Relatório Técnico).
+- O token não expira. Quem tem a URL lê a agenda até um token novo ser emitido.
+- Na verificação local, os dados de teste foram criados pela API com um script (`curl`). No Git Bash do Windows, o corpo com acentos precisa ir pela entrada padrão; como argumento, chega ao `curl.exe` fora de UTF-8 e a API responde 400.
+
+**Próximo passo**
+- PR da `issue-2811`. Depois, BDD de agendamento, Gatling e deploy, onde o feed será assinado no Google Calendar.
