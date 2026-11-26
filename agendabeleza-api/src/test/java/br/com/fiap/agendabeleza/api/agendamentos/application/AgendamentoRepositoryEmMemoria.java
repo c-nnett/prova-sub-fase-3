@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.FiltroDaAgenda;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.AlteracaoAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
@@ -63,12 +64,30 @@ public class AgendamentoRepositoryEmMemoria implements AgendamentoRepository {
 				.toList();
 	}
 
+	/** Mesmos critérios das especificações do adaptador JPA: período pelo início, status e profissional opcionais. */
+	@Override
+	public List<Agendamento> listarDoEstabelecimento(FiltroDaAgenda filtro) {
+		return dados.values().stream()
+				.filter(agendamento -> agendamento.estabelecimentoId().equals(filtro.estabelecimentoId()))
+				.filter(agendamento -> iniciaNoPeriodo(agendamento, filtro.periodo()))
+				.filter(agendamento -> filtro.status().isEmpty() || filtro.status().contains(agendamento.status()))
+				.filter(agendamento -> filtro.profissionalId() == null
+						|| filtro.profissionalId().equals(agendamento.profissionalId()))
+				.sorted(Comparator.comparing(Agendamento::inicio))
+				.map(this::copia)
+				.toList();
+	}
+
 	public List<AlteracaoAgendamento> historico() {
 		return List.copyOf(historico);
 	}
 
 	public int total() {
 		return dados.size();
+	}
+
+	private static boolean iniciaNoPeriodo(Agendamento agendamento, Intervalo periodo) {
+		return !agendamento.inicio().isBefore(periodo.inicio()) && agendamento.inicio().isBefore(periodo.fim());
 	}
 
 	private static boolean conflita(Agendamento gravado, Agendamento novo) {

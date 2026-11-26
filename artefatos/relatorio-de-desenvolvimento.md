@@ -215,4 +215,40 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - Confirmar, cancelar, concluir e registrar a falta não usam a trava por profissional, porque não verificam horário; o bloqueio otimista cobre alterações simultâneas do mesmo agendamento.
 
 **Próximo passo**
-- Painel do estabelecimento: `GET /estabelecimentos/{id}/agendamentos` com filtros e `GET /estabelecimentos/{id}/painel/resumo`.
+- Painel do estabelecimento: `GET /estabelecimentos/{id}/agendamentos` com filtros e `GET /estabelecimentos/{id}/painel/resumo`. Feito em 25/11 (registro abaixo).
+
+### 25/11 (quarta): painel do estabelecimento (2ª meta de 24/11, branch `issue-2411`)
+
+**Resultado:** Concluído, com um dia de atraso. **Funcionalidade 6 pronta.** As notificações de 25/11 seguem em paralelo na branch `issue-2511`, com registro próprio
+**Horas:** a preencher
+**Tarefas:** 1 de 1 (a meta pendente de 24/11)
+**Pronto quando:** atendido nos testes. O painel lê direto dos agendamentos gravados, e o caso de uso comprova que um agendamento novo no período aparece no resumo. A verificação manual pelo Swagger ainda não foi feita
+
+**Realizado**
+- `GET /api/v1/estabelecimentos/{id}/agendamentos?de&ate&status&profissionalId`: agenda do período em ordem de início, com status repetível e profissional opcionais.
+- `GET /api/v1/estabelecimentos/{id}/painel/resumo?de&ate&profissionalId`: total, total por status (os cinco, com zero quando não houver), receita realizada e receita prevista.
+- Datas no fuso do estabelecimento, padrão "hoje", limite de 31 dias (422) e acesso só do gestor (403).
+- Em TDD e em commits próprios: `refactor:` da checagem do gestor, dois `test:` (domínio e casos de uso; persistência e controller) e um `feat:`.
+
+**Fora do plano**
+- `Estabelecimento.garantirGestor` e `EstabelecimentoDoGestor.obter` ganharam a ação como parâmetro, para o 403 dizer "Somente o gestor do estabelecimento pode consultar o painel" em vez de "alterá-lo". `EstabelecimentoDoGestor` ficou público e é reaproveitado pelo módulo de agendamentos, pela camada `application`, como as regras do ArchUnit permitem.
+
+**Métricas do dia**
+- Testes: 478 no `./mvnw verify`, todos passando, com as regras de cobertura do JaCoCo atendidas.
+- Cobertura de linhas de `agendamentos`: 99,2% nos casos de uso e 99,5% no domínio; as classes novas ficaram com 100%.
+
+**Desafios e soluções**
+- **Filtros opcionais na consulta.**
+  - *Como apareceu:* status e profissional são opcionais. O caminho óbvio seria uma JPQL com `(:profissionalId is null or a.profissionalId = :profissionalId)`, mas esse padrão é conhecido por falhar no PostgreSQL com parâmetro nulo de tipo UUID, porque o tipo não pode ser inferido. Não chegou a ser implementado: a alternativa foi escolhida antes.
+  - *Solução:* critérios pequenos e combináveis com `Specification` (`AgendamentoEspecificacoes`). Um filtro ausente vira `Specification.unrestricted()`, e `Specification.allOf` junta os critérios. O mesmo recurso vai servir à busca de 27/11.
+- **Agenda e resumo com as mesmas regras.**
+  - *Como apareceu:* as duas rotas carregam o estabelecimento (404), exigem o gestor (403), resolvem as datas no fuso e validam o período (422). Duplicar esse fluxo deixaria as regras divergirem.
+  - *Solução:* `PeriodoDoPainel.carregar` (fábrica estática) concentra a parte comum. O resumo é uma **composição**: `ResumirAgendaDoEstabelecimentoUseCase` chama a consulta da agenda e transforma o resultado com `ResumoDaAgenda.de` (domínio puro). `DadosDoPeriodo<T>` carrega o período resolvido junto com a agenda ou com o resumo, para a resposta informar as datas e o fuso usados.
+
+**Riscos e decisões**
+- O período considera o **início** do agendamento, como o índice `idx_agendamento_estab_inicio`; um atendimento que começa às 23h30 e termina depois da meia-noite aparece só no primeiro dia.
+- O resumo é calculado em memória sobre a agenda do período. O limite de 31 dias mantém o volume pequeno; se crescer, a soma pode ir para uma consulta agregada sem mudar a porta dos casos de uso.
+- Profissional de outro estabelecimento no filtro devolve lista vazia, sem erro, porque a consulta sempre filtra também pelo estabelecimento.
+
+**Próximo passo**
+- Abrir o PR da `issue-2411` (funcionalidade 6 completa). No merge com a `issue-2511`, ordenar os registros diários 23/11 → 24/11 → 25/11.

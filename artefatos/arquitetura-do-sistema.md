@@ -218,8 +218,24 @@ As cinco ações de gestão respondem 200 com o agendamento como ficou gravado, 
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| GET | `/estabelecimentos/{id}/agendamentos?de&ate&status&profissionalId` | Gestor dono | Painel: agenda filtrada |
-| GET | `/estabelecimentos/{id}/painel/resumo?de&ate` | Gestor dono | Painel: totais por status |
+| GET | `/estabelecimentos/{id}/agendamentos?de&ate&status&profissionalId` | Gestor dono | Painel: agendamentos que começam no período, em ordem de início. `status` pode se repetir (`status=AGENDADO&status=CONFIRMADO`); sem ele, todos os status |
+| GET | `/estabelecimentos/{id}/painel/resumo?de&ate&profissionalId` | Gestor dono | Painel: total, total por status (os cinco, com zero quando não houver), receita realizada (`CONCLUIDO`) e receita prevista (`AGENDADO` e `CONFIRMADO`) |
+
+As duas rotas do painel ficam no `PainelEstabelecimentoController` do módulo de agendamentos. `de` e `ate` são datas (`aaaa-mm-dd`) no fuso do estabelecimento, e o período inclui os dois dias: vira `[de 00:00, ate+1 00:00)`. Sem datas, vale o dia de hoje; só com uma delas, vale esse dia. Respondem 400 para data, status ou UUID malformado, 403 se o usuário não for o gestor, 404 se o estabelecimento não existir e 422 se `ate` for anterior a `de` ou se o período passar de 31 dias. O resumo reaproveita a consulta da agenda (`ResumirAgendaDoEstabelecimentoUseCase` compõe `ConsultarAgendaDoEstabelecimentoUseCase`), e a parte comum, que carrega o estabelecimento, exige o gestor e resolve o período, fica em `PeriodoDoPainel`. No adaptador, os filtros opcionais são `Specification` combináveis (`AgendamentoEspecificacoes`), apoiados no índice `idx_agendamento_estab_inicio`.
+
+Resposta do resumo:
+
+```json
+{
+  "de": "2030-03-04",
+  "ate": "2030-03-04",
+  "fuso": "America/Sao_Paulo",
+  "total": 6,
+  "porStatus": { "AGENDADO": 2, "CONFIRMADO": 1, "CONCLUIDO": 2, "CANCELADO": 1, "NAO_COMPARECEU": 0 },
+  "receitaRealizada": 180.00,
+  "receitaPrevista": 120.00
+}
+```
 
 Resposta de horários livres, com os horários no fuso do estabelecimento e `fim` exclusivo:
 

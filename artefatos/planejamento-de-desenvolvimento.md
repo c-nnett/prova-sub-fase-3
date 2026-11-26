@@ -138,7 +138,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 #### Ter 24/11 (2h): gestão e painel
 
 - [x] Implementar confirmar, cancelar, reagendar, concluir e registrar não comparecimento, com histórico.
-- [ ] Publicar o painel do estabelecimento: agenda filtrada por data, profissional e status, e resumo do dia.
+- [x] Publicar o painel do estabelecimento: agenda filtrada por data, profissional e status, e resumo do dia. (Concluído em 25/11, um dia depois.)
 
 **Pronto quando:** toda transição fora do diagrama da modelagem é recusada, e o painel mostra a agenda atualizada. **Funcionalidade 6 pronta.**
 
