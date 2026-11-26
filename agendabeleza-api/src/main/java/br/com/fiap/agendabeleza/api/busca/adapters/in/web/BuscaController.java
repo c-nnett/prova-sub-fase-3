@@ -67,7 +67,7 @@ class BuscaController {
 			@Parameter(description = "Ordem do resultado; padrão MELHOR_AVALIADOS") @RequestParam(required = false)
 			OrdemDaBusca ordem) {
 		return PaginaResponse.de(buscar.executar(new BuscarEstabelecimentosUseCase.Consulta(nome, cidade, bairro,
-				servico, categoria, notaMinima, precoMinimo, precoMaximo, pagina, tamanho, ordem)),
+				servico, categoria, notaMinima, precoMinimo, precoMaximo, null, null, null, pagina, tamanho, ordem)),
 				EstabelecimentoEncontradoResponse::de);
 	}
 

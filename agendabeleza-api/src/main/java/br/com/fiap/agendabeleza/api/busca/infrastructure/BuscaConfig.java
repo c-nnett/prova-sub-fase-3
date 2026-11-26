@@ -1,5 +1,7 @@
 package br.com.fiap.agendabeleza.api.busca.infrastructure;
 
+import java.time.Clock;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,8 +13,9 @@ import br.com.fiap.agendabeleza.api.busca.application.usecase.BuscarEstabelecime
 class BuscaConfig {
 
 	@Bean
-	BuscarEstabelecimentosUseCase buscarEstabelecimentosUseCase(CatalogoDeEstabelecimentos catalogo) {
-		return new BuscarEstabelecimentosUseCase(catalogo);
+	BuscarEstabelecimentosUseCase buscarEstabelecimentosUseCase(CatalogoDeEstabelecimentos catalogo,
+			Clock relogio) {
+		return new BuscarEstabelecimentosUseCase(catalogo, relogio);
 	}
 
 }
