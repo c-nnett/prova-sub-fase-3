@@ -49,12 +49,22 @@ public abstract class AlteracaoDeAgendamentoUseCase<C extends ComandoDeAlteracao
 		Agendamento agendamento = partes.agendamento();
 		return executarNaAgenda(agendamento.profissionalId(), () -> {
 			aplicar(partes, comando, relogio.instant());
-			return agendamentos.salvar(agendamento);
+			Agendamento gravado = agendamentos.salvar(agendamento);
+			depoisDeGravar(partes, gravado);
+			return gravado;
 		});
 	}
 
 	/** Aplica a ação do domínio sobre {@code partes.agendamento()}, que será gravado em seguida. */
 	abstract void aplicar(PartesDoAgendamento partes, C comando, Instant agora);
+
+	/**
+	 * Gancho para o que precisa acontecer junto com a gravação, como os avisos ao cliente e ao profissional. Roda
+	 * dentro de {@link #executarNaAgenda}, só depois de a ação passar e o agendamento ser gravado. Por padrão, nada.
+	 */
+	void depoisDeGravar(PartesDoAgendamento partes, Agendamento gravado) {
+		// As ações que não avisam ninguém não sobrescrevem.
+	}
 
 	/**
 	 * Gancho para as ações que verificam a agenda do profissional antes de gravar. Por padrão, executa direto: o

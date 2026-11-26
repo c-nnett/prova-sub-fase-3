@@ -354,6 +354,7 @@ O vínculo entre profissional e serviço é validado no caso de uso, e não por 
 | `id` | `uuid` | PK |
 | `agendamento_id` | `uuid` | FK |
 | `tipo` | `varchar(20)` | `CONFIRMACAO`, `LEMBRETE`, `REAGENDAMENTO`, `CANCELAMENTO` |
+| `papel` | `varchar(20)` | `CLIENTE` ou `PROFISSIONAL`. Incluída em 25/11: o e-mail do cliente só existe na outbox, e o cancelamento e o reagendamento o leem da notificação de papel `CLIENTE` |
 | `destinatario_email` | `varchar(180)` | |
 | `assunto` | `varchar(200)` | |
 | `corpo` | `text` | |
@@ -454,7 +455,7 @@ Estas regras envolvem mais de uma tabela ou dependem de horário e, por isso, n�
 - Confirmar, concluir e registrar o não comparecimento cabem ao gestor ou ao profissional; cancelar e reagendar, ao cliente ou ao gestor. Concluir e registrar o não comparecimento só valem a partir do início (seção 4.2).
 - O reagendamento repete as verificações da reserva para o novo horário, sem contar o intervalo que o próprio agendamento ocupa hoje: um novo início meia hora depois do atual não conflita com ele mesmo. Basta comparar o intervalo, porque a restrição `agendamento_sem_conflito` garante que nenhum outro agendamento ativo do profissional o sobrepõe. Como a reserva e o bloqueio, o reagendamento roda com a trava consultiva por profissional, e o `ConcorrenciaAgendaTest` cobre a disputa entre reagendamento e bloqueio.
 - O painel do estabelecimento só é consultado pelo gestor. Um agendamento entra no período se o `inicio` cair nele, com o período em dias inteiros no fuso do estabelecimento e limitado a 31 dias. A receita realizada soma o `preco` dos `CONCLUIDO`, e a prevista, o dos `AGENDADO` e `CONFIRMADO`. Não há tabela nova: a consulta usa o índice `idx_agendamento_estab_inicio` (seção 5).
-- Reagendar ou cancelar marca os lembretes pendentes como `CANCELADA`. O reagendamento cria novos lembretes.
+- Reagendar ou cancelar marca os lembretes pendentes como `CANCELADA`. O reagendamento cria novos lembretes. Implementado em 25/11: a reserva grava `CONFIRMACAO` (imediata) e `LEMBRETE` (`inicio` − 24 h) para cliente e profissional; sem lembrete se faltar menos de 24 h. Lembrete já `ENVIADA` não muda. O job só envia `PENDENTE`, então nada sai duas vezes.
 - `nota_media` e `total_avaliacoes` são atualizados na mesma transação da avaliação, para evitar recalcular as médias em cada busca. A média é recalculada da soma de todas as notas (e não somada à média anterior, que tem só duas casas), com trava consultiva pela chave do estabelecimento. Fora da avaliação, nenhuma gravação do estabelecimento ou do profissional altera essas colunas.
 
 ### 4.4 Horários livres
@@ -525,6 +526,7 @@ Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `
 | `V1_1795282023552__criar_tabelas_profissionais.sql` | `profissional`, `especialidade` (com seed do catálogo), `profissional_especialidade`, `profissional_servico`, `disponibilidade_profissional`, `bloqueio_agenda` | 22/11 |
 | `V1_1795476613832__criar_tabelas_agendamentos.sql` | extensão `btree_gist`, `agendamento` com a restrição `agendamento_sem_conflito`, `agendamento_historico` | 23/11 |
 | `V1_1795485921750__criar_indice_ocupacoes_agendamento.sql` | índice `idx_agendamento_prof_periodo`, para a consulta de ocupações do profissional | 23/11 |
+| `V1_1795618800000__criar_tabela_notificacao.sql` | `notificacao` (outbox, com a coluna `papel`), índices `idx_notificacao_pendente` (parcial, `status = 'PENDENTE'`) e `idx_notificacao_agendamento_papel` | 25/11 |
 | `V1_1795657196611__criar_tabela_avaliacao.sql` | `avaliacao` (UK `agendamento_id`, `CHECK` das notas de 1 a 5), índices `idx_avaliacao_estab` e `idx_avaliacao_prof` | 26/11 |
 
 A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.

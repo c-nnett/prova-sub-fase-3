@@ -46,6 +46,7 @@ class AgendamentoControllerTest {
 	private static final UUID PROFISSIONAL_ID = UUID.fromString("00000000-0000-0000-0000-0000000000f1");
 	private static final UUID SERVICO_ID = UUID.fromString("00000000-0000-0000-0000-0000000000b1");
 	private static final Instant INICIO = Instant.parse("2030-03-04T13:00:00Z");
+	private static final String EMAIL_CLIENTE = "cliente@email.com";
 
 	@Autowired
 	private MockMvc mvc;
@@ -63,9 +64,14 @@ class AgendamentoControllerTest {
 			"Primeira vez", 0L);
 
 	private static String corpo(Object profissionalId, Object servicoId, Object inicio) {
+		return corpo(profissionalId, servicoId, inicio, EMAIL_CLIENTE);
+	}
+
+	private static String corpo(Object profissionalId, Object servicoId, Object inicio, String emailCliente) {
 		return """
-				{ "profissionalId": %s, "servicoId": %s, "inicio": %s, "observacoes": "Primeira vez" }
-				""".formatted(json(profissionalId), json(servicoId), json(inicio));
+				{ "profissionalId": %s, "servicoId": %s, "inicio": %s, "emailCliente": %s,
+				  "observacoes": "Primeira vez" }
+				""".formatted(json(profissionalId), json(servicoId), json(inicio), json(emailCliente));
 	}
 
 	private static String json(Object valor) {
@@ -94,8 +100,20 @@ class AgendamentoControllerTest {
 		ArgumentCaptor<CriarAgendamentoUseCase.Comando> comando =
 				ArgumentCaptor.forClass(CriarAgendamentoUseCase.Comando.class);
 		verify(criar).executar(comando.capture());
-		assertThat(comando.getValue()).isEqualTo(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, PROFISSIONAL_ID,
-				SERVICO_ID, INICIO, "Primeira vez"));
+		assertThat(comando.getValue()).isEqualTo(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, EMAIL_CLIENTE,
+				PROFISSIONAL_ID, SERVICO_ID, INICIO, "Primeira vez"));
+	}
+
+	@Test
+	void recusaReservaSemEmailDoClienteOuComEmailInvalido() throws Exception {
+		for (String emailInvalido : new String[] { null, " ", "cliente.email.com", "a".repeat(171) + "@email.com" }) {
+			mvc.perform(post(URL).header(USUARIO, CLIENTE_ID).contentType(MediaType.APPLICATION_JSON)
+					.content(corpo(PROFISSIONAL_ID, SERVICO_ID, INICIO, emailInvalido)))
+					.andExpect(status().isBadRequest())
+					.andExpect(jsonPath("$.erros[0].campo").value("emailCliente"));
+		}
+
+		verifyNoInteractions(criar);
 	}
 
 	@Test
@@ -122,8 +140,9 @@ class AgendamentoControllerTest {
 	void recusaObservacoesLongas() throws Exception {
 		mvc.perform(post(URL).header(USUARIO, CLIENTE_ID).contentType(MediaType.APPLICATION_JSON)
 				.content("""
-						{ "profissionalId": "%s", "servicoId": "%s", "inicio": "%s", "observacoes": "%s" }
-						""".formatted(PROFISSIONAL_ID, SERVICO_ID, INICIO, "x".repeat(501))))
+						{ "profissionalId": "%s", "servicoId": "%s", "inicio": "%s", "emailCliente": "%s",
+						  "observacoes": "%s" }
+						""".formatted(PROFISSIONAL_ID, SERVICO_ID, INICIO, EMAIL_CLIENTE, "x".repeat(501))))
 				.andExpect(status().isBadRequest());
 	}
 

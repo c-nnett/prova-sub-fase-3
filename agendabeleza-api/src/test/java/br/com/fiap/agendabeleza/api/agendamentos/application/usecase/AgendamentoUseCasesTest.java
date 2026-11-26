@@ -19,6 +19,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.AgendamentoRepositoryEmMemoria;
+import br.com.fiap.agendabeleza.api.agendamentos.application.AvisosDoAgendamentoEmMemoria;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AvisoDoAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.StatusAgendamento;
@@ -51,6 +53,7 @@ class AgendamentoUseCasesTest {
 	private static final Instant DEZ_HORAS = Instant.parse("2030-03-04T13:00:00Z");
 	private static final UUID CLIENTE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000c1");
 	private static final UUID OUTRO_CLIENTE_ID = UUID.fromString("00000000-0000-0000-0000-0000000000c2");
+	private static final String EMAIL_CLIENTE = "cliente@email.com";
 
 	private final AgendamentoRepositoryEmMemoria agendamentos = new AgendamentoRepositoryEmMemoria();
 	private final ProfissionalRepositoryEmMemoria profissionais = new ProfissionalRepositoryEmMemoria();
@@ -59,9 +62,10 @@ class AgendamentoUseCasesTest {
 	private final BloqueioAgendaRepositoryEmMemoria bloqueios = new BloqueioAgendaRepositoryEmMemoria();
 	private final Clock relogio = Clock.fixed(AGORA, ZoneOffset.UTC);
 	private final ExecucaoSerializadaDireta execucao = new ExecucaoSerializadaDireta();
+	private final AvisosDoAgendamentoEmMemoria avisos = new AvisosDoAgendamentoEmMemoria(execucao);
 
 	private final CriarAgendamentoUseCase criar = new CriarAgendamentoUseCase(agendamentos, profissionais, servicos,
-			estabelecimentos, bloqueios, execucao, relogio);
+			estabelecimentos, bloqueios, execucao, avisos, relogio);
 	private final AgendamentosAtivosDoProfissional agendamentosAtivos =
 			new AgendamentosAtivosDoProfissional(agendamentos);
 	private final ListarMeusAgendamentosUseCase listarMeus = new ListarMeusAgendamentosUseCase(agendamentos);
@@ -93,15 +97,17 @@ class AgendamentoUseCasesTest {
 	}
 
 	private Agendamento reservar(UUID clienteId, Instant inicio) {
-		return criar.executar(new CriarAgendamentoUseCase.Comando(clienteId, ana.id(), corte.id(), inicio,
-				"Primeira vez"));
+		return criar.executar(new CriarAgendamentoUseCase.Comando(clienteId, EMAIL_CLIENTE, ana.id(), corte.id(),
+				inicio, "Primeira vez"));
 	}
 
+	/** Reserva recusada não grava o agendamento nem pede aviso. */
 	private void assertRecusa(Instant inicio, String mensagem) {
 		assertThatThrownBy(() -> reservar(inicio))
 				.isInstanceOf(RegraNegocioException.class)
 				.hasMessage(mensagem);
 		assertThat(agendamentos.total()).isZero();
+		assertThat(avisos.registrados()).isEmpty();
 	}
 
 	// Criar
@@ -135,11 +141,32 @@ class AgendamentoUseCasesTest {
 	}
 
 	@Test
+	void reservaAvisaClienteEProfissionalDentroDaExecucaoSerializada() {
+		Agendamento criado = reservar(DEZ_HORAS);
+
+		assertThat(avisos.registrados()).singleElement().satisfies(registrado -> {
+			assertThat(registrado.ocorrencia()).isEqualTo(AvisosDoAgendamentoEmMemoria.Ocorrencia.RESERVADO);
+			assertThat(registrado.aviso()).isEqualTo(AvisoDoAgendamento.de(criado, ana, estabelecimento));
+			assertThat(registrado.emailCliente()).isEqualTo(EMAIL_CLIENTE);
+			assertThat(registrado.dentroDaExecucao()).isTrue();
+		});
+	}
+
+	@Test
+	void reservaEmHorarioOcupadoNaoAvisa() {
+		reservar(DEZ_HORAS);
+
+		assertThatThrownBy(() -> reservar(OUTRO_CLIENTE_ID, DEZ_HORAS))
+				.isInstanceOf(HorarioIndisponivelException.class);
+		assertThat(avisos.registrados()).hasSize(1);
+	}
+
+	@Test
 	void recusaProfissionalInexistente() {
 		UUID inexistente = UUID.randomUUID();
 
-		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, inexistente,
-				corte.id(), DEZ_HORAS, null)))
+		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, EMAIL_CLIENTE,
+				inexistente, corte.id(), DEZ_HORAS, null)))
 				.isInstanceOf(RecursoNaoEncontradoException.class)
 				.hasMessage("Profissional " + inexistente + " não encontrado");
 	}
@@ -148,8 +175,8 @@ class AgendamentoUseCasesTest {
 	void recusaServicoInexistente() {
 		UUID inexistente = UUID.randomUUID();
 
-		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, ana.id(),
-				inexistente, DEZ_HORAS, null)))
+		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, EMAIL_CLIENTE,
+				ana.id(), inexistente, DEZ_HORAS, null)))
 				.isInstanceOf(RecursoNaoEncontradoException.class)
 				.hasMessage("Serviço " + inexistente + " não encontrado");
 	}
@@ -173,8 +200,8 @@ class AgendamentoUseCasesTest {
 		Servico deOutro = servicos.salvar(Servico.cadastrar(UUID.randomUUID(), "Corte", null,
 				CategoriaServico.CABELO, 60, BigDecimal.TEN));
 
-		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, ana.id(),
-				deOutro.id(), DEZ_HORAS, null)))
+		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, EMAIL_CLIENTE,
+				ana.id(), deOutro.id(), DEZ_HORAS, null)))
 				.isInstanceOf(RegraNegocioException.class)
 				.hasMessage("O serviço não pertence ao estabelecimento do profissional");
 	}
@@ -184,8 +211,8 @@ class AgendamentoUseCasesTest {
 		Servico escova = servicos.salvar(Servico.cadastrar(estabelecimento.id(), "Escova", null,
 				CategoriaServico.CABELO, 30, BigDecimal.TEN));
 
-		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, ana.id(),
-				escova.id(), DEZ_HORAS, null)))
+		assertThatThrownBy(() -> criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, EMAIL_CLIENTE,
+				ana.id(), escova.id(), DEZ_HORAS, null)))
 				.isInstanceOf(RegraNegocioException.class)
 				.hasMessage("O profissional não executa o serviço");
 	}

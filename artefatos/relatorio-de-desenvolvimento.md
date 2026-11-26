@@ -253,6 +253,57 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 **Próximo passo**
 - Abrir o PR da `issue-2411` (funcionalidade 6 completa). No merge com a `issue-2511`, ordenar os registros diários 23/11 → 24/11 → 25/11.
 
+### 25/11 (quarta): confirmações e lembretes (branch `issue-2511`). Marco M2
+
+**Resultado:** Concluído. **Funcionalidade 3 pronta.**
+**Horas:** a preencher, de 2 h planejadas
+**Tarefas:** 4 de 4 planejadas
+**Pronto quando:** atendido. No Mailpit do Docker Compose, uma reserva seguida de cancelamento gerou os 4 e-mails esperados (confirmação e cancelamento, para cliente e profissional), com remetente e acentos corretos. No `NotificacoesPorEmailTest`, com PostgreSQL e SMTP reais, o agendamento cancelado não recebe lembrete, o mantido recebe, e uma nova rodada não reenvia nada
+
+**Realizado**
+- `NotificacaoGateway` (porta) com a `Mensagem` validada no domínio e o `NotificacaoSmtpAdapter` (`JavaMailSender`), apontado para o Mailpit do Docker Compose.
+- Teste do adaptador com GreenMail: confere remetente, destinatário, assunto e corpo, e traduz a falha de conexão em `FalhaNoEnvioException`.
+- Outbox `notificacao` (migração nova), com o agregado `Notificacao` (pendente, enviada, falha após 5 tentativas) e o texto de cada tipo em `TipoNotificacao`, no fuso do estabelecimento.
+- Porta `AvisosDoAgendamento`, declarada em `agendamentos` e implementada por `AvisosPorEmail` em `notificacoes`. A reserva, o cancelamento e o reagendamento avisam cliente e profissional dentro da mesma transação da gravação.
+- `EnviarNotificacoesPendentesUseCase` e o job `@Scheduled` (a cada minuto, desligado nos testes).
+- `emailCliente` obrigatório no `POST /agendamentos` (400 se ausente ou inválido).
+- Lembretes: `LEMBRETE` em início − 24 h na reserva e no reagendamento (nenhum se faltar menos de 24 h), e `CANCELADA` para os pendentes ao cancelar ou reagendar. Sem migração nova e sem mudança no módulo de agendamentos: o `CHECK` da outbox já previa os dois valores.
+- `NotificacoesPorEmailTest`: fluxo de ponta a ponta com os beans reais (casos de uso, outbox no PostgreSQL do Testcontainers, `NotificacaoSmtpAdapter`) e o SMTP do GreenMail. As rodadas do job usam relógio fixo para fazer o lembrete vencer.
+- Conferência manual no Mailpit, com um `.env` em portas livres (as padrão estavam ocupadas por outros projetos da máquina).
+
+**Pendente**
+- Nenhum item da meta. Abrir o PR da `issue-2511`.
+
+**Fora do plano**
+- Validação de e-mail extraída do `Profissional` para `Validacoes.email`, reaproveitada pela `Mensagem` (sem duplicar a expressão regular).
+- A `issue-2511` foi refeita sobre a `master` (gestão e painel da `issue-2411`, avaliações da `issue-2611`) antes do PR, com rebase. A 2ª meta liga os e-mails ao cancelamento e ao reagendamento da gestão.
+- O job genérico de envio, previsto para a 3ª meta, entrou na 2ª. Por isso a 3ª ficou só com as regras dos lembretes.
+
+**Métricas do dia**
+- Testes: 533, todos verdes no `./mvnw verify`, com as regras de cobertura do JaCoCo atendidas.
+- Cobertura das classes novas de `notificacoes` e das portas novas de `agendamentos`: 100% das linhas e dos ramos (meta de 80%).
+
+**Desafios e soluções**
+- **E-mail que não pode desfazer nem sair antes da reserva.**
+  - *Como apareceu:* o e-mail precisa sair só se a reserva for gravada, mas um servidor de e-mail fora do ar não pode recusar a reserva. Enviar dentro da transação prende a reserva ao SMTP; enviar depois do commit em memória (`@TransactionalEventListener` + `@Async`, como previa o corte de 20/11) perde o e-mail se a aplicação cair entre o commit e o envio, e não tem onde guardar o e-mail do cliente para os avisos seguintes.
+  - *Solução:* **outbox** gravada na mesma transação, dentro da `ExecucaoSerializada` que já protegia a reserva. Um job envia as pendentes com novas tentativas. O teste de concorrência comprova o rollback junto: de cinco reservas simultâneas, só a aceita deixa notificações. O cancelamento passou a rodar na `ExecucaoSerializada` para ter a mesma transação.
+- **Três avisos com o mesmo fluxo.**
+  - *Solução:* um gancho `depoisDeGravar` no **Template Method** `AlteracaoDeAgendamentoUseCase`, sobrescrito só pelo cancelamento e pelo reagendamento. No módulo de notificações, `AvisosPorEmail` concentra o fluxo comum, e cada `TipoNotificacao` é a **Strategy** do próprio texto.
+
+**Riscos e decisões**
+- O e-mail do cliente é um campo obrigatório `emailCliente` no `POST /agendamentos`, guardado na outbox `notificacao` (`destinatario_email`, coluna `papel = CLIENTE`). Não há tabela de usuários depois do corte de escopo de 20/11, e o agregado `Agendamento` não mudou. Agendamento sem notificação do cliente (anterior à migração) avisa só o profissional.
+- O corte de 20/11 trocava a outbox por envio em memória depois do commit; a decisão foi revista (planejamento, seção 2.1). Sem `SKIP LOCKED`, porque roda uma instância só.
+- A dependência entre módulos segue o padrão de `AgendamentosAtivos`: quem consome declara a porta (`agendamentos`), e quem sabe fazer implementa (`notificacoes`).
+- O GreenMail traz o JUnit 4; ele foi excluído no `pom.xml`, porque os testes usam só a extensão do JUnit 5.
+- O Actuator passa a checar o SMTP no `/actuator/health`. Sem servidor de e-mail, a saúde fica `DOWN`. Avaliar antes do deploy de 28/11.
+- Reserva feita com menos de 24 h de antecedência não ganha lembrete: a confirmação acabou de sair.
+- Corrida aceita entre o cancelamento e o envio do mesmo lembrete, no instante exato em que ele vence: o e-mail já saiu e o job grava `ENVIADA` por cima de `CANCELADA`. Sem coluna de versão; a correção seria um update condicional no adaptador.
+
+- O Docker Compose de todas as worktrees usa o mesmo nome de projeto (`agendabeleza`) e, portanto, o mesmo volume do PostgreSQL. Subir o compose numa branch aplica as migrações dela nesse banco local compartilhado.
+
+**Próximo passo**
+- Abrir o PR da `issue-2511` (funcionalidade 3 completa) e, na sexta 27/11, a busca e os filtros.
+
 ### 26/11 (quinta): avaliações (feita em 25/11, adiantada; branch `issue-2611`)
 
 **Resultado:** Concluído um dia antes do planejado. **Funcionalidade 4 pronta**

@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AvisosDoAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.AgendamentosAtivosDoProfissional;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
@@ -27,7 +28,8 @@ import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalR
 
 /**
  * Registra os casos de uso do módulo como beans. As portas dos módulos {@code estabelecimentos} e
- * {@code profissionais} são recebidas pela interface (arquitetura, seção 4.2).
+ * {@code profissionais} são recebidas pela interface (arquitetura, seção 4.2), assim como
+ * {@link AvisosDoAgendamento}, implementada pelo módulo {@code notificacoes}.
  */
 @Configuration(proxyBeanMethods = false)
 class AgendamentosConfig {
@@ -45,9 +47,9 @@ class AgendamentosConfig {
 	CriarAgendamentoUseCase criarAgendamentoUseCase(AgendamentoRepository agendamentos,
 			ProfissionalRepository profissionais, ServicoRepository servicos,
 			EstabelecimentoRepository estabelecimentos, BloqueioAgendaRepository bloqueios,
-			ExecucaoSerializada execucao, Clock relogio) {
+			ExecucaoSerializada execucao, AvisosDoAgendamento avisos, Clock relogio) {
 		return new CriarAgendamentoUseCase(agendamentos, profissionais, servicos, estabelecimentos, bloqueios,
-				execucao, relogio);
+				execucao, avisos, relogio);
 	}
 
 	/** Porta do módulo de profissionais, para recusar bloqueio sobre agendamento ativo. */
@@ -69,8 +71,10 @@ class AgendamentosConfig {
 
 	@Bean
 	CancelarAgendamentoUseCase cancelarAgendamentoUseCase(AgendamentoRepository agendamentos,
-			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
-		return new CancelarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos,
+			ExecucaoSerializada execucao, AvisosDoAgendamento avisos, Clock relogio) {
+		return new CancelarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, execucao, avisos,
+				relogio);
 	}
 
 	@Bean
@@ -88,9 +92,10 @@ class AgendamentosConfig {
 	@Bean
 	ReagendarAgendamentoUseCase reagendarAgendamentoUseCase(AgendamentoRepository agendamentos,
 			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos,
-			BloqueioAgendaRepository bloqueios, ExecucaoSerializada execucao, Clock relogio) {
+			BloqueioAgendaRepository bloqueios, ExecucaoSerializada execucao, AvisosDoAgendamento avisos,
+			Clock relogio) {
 		return new ReagendarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, bloqueios, execucao,
-				relogio);
+				avisos, relogio);
 	}
 
 	@Bean

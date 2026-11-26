@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import br.com.fiap.agendabeleza.api.TestcontainersConfiguration;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CriarAgendamentoUseCase;
@@ -77,6 +78,9 @@ class ConcorrenciaAgendaTest {
 	@Autowired
 	private ProfissionalRepository profissionais;
 
+	@Autowired
+	private JdbcTemplate jdbc;
+
 	private final ExecutorService threads = Executors.newFixedThreadPool(5);
 	private UUID gestorId;
 	private Servico corte;
@@ -105,6 +109,12 @@ class ConcorrenciaAgendaTest {
 		threads.shutdownNow();
 	}
 
+	/** Uma reserva de um cliente novo a cada chamada. */
+	private Agendamento reservar(Instant inicio) {
+		return criarAgendamento.executar(new CriarAgendamentoUseCase.Comando(UUID.randomUUID(), "cliente@email.com",
+				ana.id(), corte.id(), inicio, null));
+	}
+
 	@Test
 	void reservaEBloqueioSimultaneosNoMesmoHorarioNaoPassamJuntos() throws Exception {
 		for (int rodada = 0; rodada < RODADAS; rodada++) {
@@ -119,8 +129,7 @@ class ConcorrenciaAgendaTest {
 					},
 					() -> {
 						largada.await();
-						return criarAgendamento.executar(new CriarAgendamentoUseCase.Comando(UUID.randomUUID(),
-								ana.id(), corte.id(), inicio, null));
+						return reservar(inicio);
 					}));
 
 			assertSomenteOBloqueioOuAAgendaPassa(resultados, inicio);
@@ -132,8 +141,7 @@ class ConcorrenciaAgendaTest {
 		for (int rodada = 0; rodada < RODADAS_DE_REAGENDAMENTO; rodada++) {
 			Instant inicioAtual = SEGUNDA.plus(Duration.ofHours(10L + 2L * rodada));
 			Instant novoInicio = inicioAtual.plus(Duration.ofHours(1));
-			Agendamento agendamento = criarAgendamento.executar(new CriarAgendamentoUseCase.Comando(
-					UUID.randomUUID(), ana.id(), corte.id(), inicioAtual, null));
+			Agendamento agendamento = reservar(inicioAtual);
 			CyclicBarrier largada = new CyclicBarrier(2);
 
 			List<Resultado> resultados = executarJuntos(List.of(
@@ -176,8 +184,7 @@ class ConcorrenciaAgendaTest {
 		for (int i = 0; i < 5; i++) {
 			reservas.add(() -> {
 				largada.await();
-				return criarAgendamento.executar(new CriarAgendamentoUseCase.Comando(UUID.randomUUID(), ana.id(),
-						corte.id(), inicio, null));
+				return reservar(inicio);
 			});
 		}
 
@@ -187,6 +194,19 @@ class ConcorrenciaAgendaTest {
 		assertThat(resultados).filteredOn(resultado -> !resultado.sucesso())
 				.hasSize(4)
 				.allSatisfy(falha -> assertThat(falha.erro()).isInstanceOf(HorarioIndisponivelException.class));
+		assertThat(notificacoesDaProfissional())
+				.as("só a reserva aceita deixa notificações (confirmação e lembrete, para cliente e profissional); "
+						+ "as recusadas sofrem rollback junto com a outbox")
+				.isEqualTo(4);
+	}
+
+	/** Contagem direta no banco: a outbox não expõe esse total pela porta. */
+	private int notificacoesDaProfissional() {
+		return jdbc.queryForObject("""
+				select count(*) from notificacao n
+				join agendamento a on a.id = n.agendamento_id
+				where a.profissional_id = ?
+				""", Integer.class, ana.id());
 	}
 
 	private List<Resultado> executarJuntos(List<Callable<Object>> operacoes) throws InterruptedException {
