@@ -17,9 +17,9 @@ import io.cucumber.java.pt.Quando;
 import io.restassured.response.Response;
 
 /**
- * Passos da feature de avaliação. O cenário inteiro passa pela API: cadastro do salão e da profissional, reserva,
- * confirmação, conclusão e avaliação. Para concluir, o {@link RelogioAjustavel} leva o "agora" para depois do início
- * do atendimento, que é reservado no futuro.
+ * Passos da feature de avaliação. O cenário inteiro passa pela API: cadastro do salão e da profissional
+ * ({@link SalaoDoCenario}), reserva, confirmação, conclusão e avaliação. Para concluir, o {@link RelogioAjustavel}
+ * leva o "agora" para depois do início do atendimento, que é reservado no futuro.
  */
 public class AvaliacaoSteps extends ApiDaAplicacao {
 
@@ -31,32 +31,21 @@ public class AvaliacaoSteps extends ApiDaAplicacao {
 	@Autowired
 	private RelogioAjustavel relogio;
 
-	private UUID gestorId;
+	@Autowired
+	private SalaoDoCenario salao;
+
 	private UUID clienteId;
-	private UUID estabelecimentoId;
-	private UUID servicoId;
-	private UUID profissionalId;
 	private UUID agendamentoId;
 	private Response resposta;
 
 	@Before
-	public void prepararUsuarios() {
-		gestorId = UUID.randomUUID();
+	public void prepararCliente() {
 		clienteId = UUID.randomUUID();
 	}
 
 	@After
 	public void voltarAoRelogioReal() {
 		relogio.voltarAoRelogioReal();
-	}
-
-	private static UUID idCriado(Response resposta) {
-		exigirSucesso(resposta);
-		return UUID.fromString(resposta.jsonPath().getString("id"));
-	}
-
-	private static void exigirSucesso(Response resposta) {
-		assertThat(resposta.statusCode()).as(resposta.asString()).isBetween(200, 299);
 	}
 
 	private Response avaliar(int notaSalao, int notaProfissional, String comentario) {
@@ -72,38 +61,12 @@ public class AvaliacaoSteps extends ApiDaAplicacao {
 		assertThat(consulta.jsonPath().getInt("totalAvaliacoes")).isEqualTo(totalAvaliacoes);
 	}
 
-	@Dado("um salão com a profissional {string}, que atende às segundas das {word} às {word}")
-	public void umSalaoComAProfissional(String nome, String inicio, String fim) {
-		estabelecimentoId = idCriado(api(gestorId).body("""
-				{
-				  "nome": "Salão Bela Vista",
-				  "endereco": { "logradouro": "Rua Augusta", "numero": "100", "bairro": "Consolação",
-				                "cidade": "São Paulo", "uf": "SP", "cep": "01305-000" },
-				  "horarios": [ { "diaSemana": "MONDAY", "abreAs": "08:00", "fechaAs": "20:00" } ]
-				}
-				""").post("/estabelecimentos"));
-		servicoId = idCriado(api(gestorId).body("""
-				{ "nome": "Corte", "categoria": "CABELO", "duracaoMinutos": 60, "precoBase": 80.00 }
-				""").post("/estabelecimentos/{id}/servicos", estabelecimentoId));
-		profissionalId = idCriado(api(gestorId).body("""
-				{ "nome": "%s", "email": "%s@salao.com" }
-				""".formatted(nome, nome.toLowerCase())).post("/estabelecimentos/{id}/profissionais", estabelecimentoId));
-		exigirSucesso(api(gestorId).body("""
-				{ "servicos": [ { "servicoId": "%s" } ] }
-				""".formatted(servicoId)).put("/profissionais/{id}/servicos", profissionalId));
-		exigirSucesso(api(gestorId).body("""
-				{ "periodos": [ { "diaSemana": "MONDAY", "inicio": "%s", "fim": "%s" } ] }
-				""".formatted(inicio, fim)).put("/profissionais/{id}/disponibilidades", profissionalId));
-	}
-
 	@Dado("que fui atendido por ela e o gestor concluiu o atendimento")
 	public void queFuiAtendidoEOGestorConcluiu() {
-		agendamentoId = idCriado(api(clienteId).body("""
-				{ "profissionalId": "%s", "servicoId": "%s", "inicio": "%s", "emailCliente": "cliente@email.com" }
-				""".formatted(profissionalId, servicoId, INICIO_DO_ATENDIMENTO)).post("/agendamentos"));
-		exigirSucesso(api(gestorId).post("/agendamentos/{id}/confirmar", agendamentoId));
+		agendamentoId = idCriado(salao.reservar(clienteId, INICIO_DO_ATENDIMENTO));
+		exigirSucesso(api(salao.gestorId()).post("/agendamentos/{id}/confirmar", agendamentoId));
 		relogio.definirAgora(DEPOIS_DO_ATENDIMENTO);
-		exigirSucesso(api(gestorId).post("/agendamentos/{id}/concluir", agendamentoId));
+		exigirSucesso(api(salao.gestorId()).post("/agendamentos/{id}/concluir", agendamentoId));
 	}
 
 	@Dado("que já avaliei o atendimento com nota {int} para o salão e {int} para a profissional")
@@ -124,23 +87,23 @@ public class AvaliacaoSteps extends ApiDaAplicacao {
 
 	@Entao("a avaliação é recusada com status {int} e a mensagem {string}")
 	public void aAvaliacaoERecusada(int status, String mensagem) {
-		assertThat(resposta.statusCode()).as(resposta.asString()).isEqualTo(status);
-		assertThat(resposta.jsonPath().getString("detail")).isEqualTo(mensagem);
+		exigirRecusa(resposta, status, mensagem);
 	}
 
 	@E("o salão tem nota média {string} em {int} avaliação")
 	public void oSalaoTemNotaMedia(String notaMedia, int totalAvaliacoes) {
-		exigirNotaMedia(api(null).get("/estabelecimentos/{id}", estabelecimentoId), notaMedia, totalAvaliacoes);
+		exigirNotaMedia(api(null).get("/estabelecimentos/{id}", salao.estabelecimentoId()), notaMedia,
+				totalAvaliacoes);
 	}
 
 	@E("a profissional tem nota média {string} em {int} avaliação")
 	public void aProfissionalTemNotaMedia(String notaMedia, int totalAvaliacoes) {
-		exigirNotaMedia(api(null).get("/profissionais/{id}", profissionalId), notaMedia, totalAvaliacoes);
+		exigirNotaMedia(api(null).get("/profissionais/{id}", salao.profissionalId()), notaMedia, totalAvaliacoes);
 	}
 
 	@E("a lista pública de avaliações do salão mostra o comentário {string}")
 	public void aListaPublicaMostraOComentario(String comentario) {
-		Response lista = api(null).get("/estabelecimentos/{id}/avaliacoes", estabelecimentoId);
+		Response lista = api(null).get("/estabelecimentos/{id}/avaliacoes", salao.estabelecimentoId());
 		assertThat(lista.statusCode()).isEqualTo(200);
 		assertThat(lista.jsonPath().getList("comentario", String.class)).containsExactly(comentario);
 	}
