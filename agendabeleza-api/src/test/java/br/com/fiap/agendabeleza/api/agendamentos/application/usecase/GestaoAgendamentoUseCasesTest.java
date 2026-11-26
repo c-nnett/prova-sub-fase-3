@@ -22,6 +22,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.AgendamentoRepositoryEmMemoria;
+import br.com.fiap.agendabeleza.api.agendamentos.application.AvisosDoAgendamentoEmMemoria;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AvisoDoAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.AlteracaoAgendamento;
@@ -72,15 +74,16 @@ class GestaoAgendamentoUseCasesTest {
 	private final BloqueioAgendaRepositoryEmMemoria bloqueios = new BloqueioAgendaRepositoryEmMemoria();
 	private final Clock relogio = Clock.fixed(AGORA, ZoneOffset.UTC);
 	private final ExecucaoSerializadaDireta execucao = new ExecucaoSerializadaDireta();
+	private final AvisosDoAgendamentoEmMemoria avisos = new AvisosDoAgendamentoEmMemoria(execucao);
 
 	private final CriarAgendamentoUseCase criar = new CriarAgendamentoUseCase(agendamentos, profissionais, servicos,
-			estabelecimentos, bloqueios, execucao, relogio);
+			estabelecimentos, bloqueios, execucao, avisos, relogio);
 	private final ConfirmarAgendamentoUseCase confirmar = new ConfirmarAgendamentoUseCase(agendamentos,
 			profissionais, estabelecimentos, relogio);
 	private final CancelarAgendamentoUseCase cancelar = new CancelarAgendamentoUseCase(agendamentos, profissionais,
-			estabelecimentos, relogio);
+			estabelecimentos, execucao, avisos, relogio);
 	private final ReagendarAgendamentoUseCase reagendar = new ReagendarAgendamentoUseCase(agendamentos,
-			profissionais, estabelecimentos, bloqueios, execucao, relogio);
+			profissionais, estabelecimentos, bloqueios, execucao, avisos, relogio);
 
 	private Estabelecimento estabelecimento;
 	private Servico corte;
@@ -103,7 +106,13 @@ class GestaoAgendamentoUseCasesTest {
 	}
 
 	private Agendamento reservar(Instant inicio) {
-		return criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, ana.id(), corte.id(), inicio, null));
+		return criar.executar(new CriarAgendamentoUseCase.Comando(CLIENTE_ID, "cliente@email.com", ana.id(),
+				corte.id(), inicio, null));
+	}
+
+	private List<AvisosDoAgendamentoEmMemoria.AvisoRegistrado> avisosDe(
+			AvisosDoAgendamentoEmMemoria.Ocorrencia ocorrencia) {
+		return avisos.registrados(ocorrencia);
 	}
 
 	private Agendamento confirmar(Agendamento agendamento, UUID usuarioSolicitante) {
@@ -127,6 +136,7 @@ class GestaoAgendamentoUseCasesTest {
 				.hasMessage(mensagemEsperada);
 		assertThat(agendamentos.buscarPorId(agendamento.id()).orElseThrow().inicio())
 				.isEqualTo(agendamento.inicio());
+		assertThat(avisosDe(AvisosDoAgendamentoEmMemoria.Ocorrencia.REAGENDADO)).isEmpty();
 	}
 
 	private static Clock relogioEm(Instant instante) {
@@ -228,6 +238,28 @@ class GestaoAgendamentoUseCasesTest {
 	}
 
 	@Test
+	void cancelamentoAvisaDentroDaExecucaoSerializadaPeloProfissional() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		Agendamento cancelado = cancelar(reservado, CLIENTE_ID, null);
+
+		assertThat(avisosDe(AvisosDoAgendamentoEmMemoria.Ocorrencia.CANCELADO)).singleElement()
+				.satisfies(registrado -> {
+					assertThat(registrado.aviso()).isEqualTo(AvisoDoAgendamento.de(cancelado, ana, estabelecimento));
+					assertThat(registrado.dentroDaExecucao()).isTrue();
+				});
+		assertThat(execucao.chaves()).containsExactly(ana.id(), ana.id());
+	}
+
+	@Test
+	void confirmacaoPeloEstabelecimentoNaoGeraAviso() {
+		confirmar(reservar(DEZ_HORAS), GESTOR_ID);
+
+		assertThat(avisos.registrados()).extracting(AvisosDoAgendamentoEmMemoria.AvisoRegistrado::ocorrencia)
+				.containsExactly(AvisosDoAgendamentoEmMemoria.Ocorrencia.RESERVADO);
+	}
+
+	@Test
 	void cancelamentoLiberaOHorarioParaOutraReserva() {
 		cancelar(reservar(DEZ_HORAS), CLIENTE_ID, null);
 
@@ -262,6 +294,7 @@ class GestaoAgendamentoUseCasesTest {
 		assertThatThrownBy(() -> cancelar(cancelado, CLIENTE_ID, null))
 				.isInstanceOf(TransicaoInvalidaException.class)
 				.hasMessage("Não é possível cancelar um agendamento CANCELADO");
+		assertThat(avisosDe(AvisosDoAgendamentoEmMemoria.Ocorrencia.CANCELADO)).hasSize(1);
 	}
 
 	// Reagendar
@@ -291,6 +324,20 @@ class GestaoAgendamentoUseCasesTest {
 		reagendar(reservado, GESTOR_ID, CATORZE_HORAS);
 
 		assertThat(execucao.chaves()).containsExactly(ana.id(), ana.id());
+	}
+
+	@Test
+	void reagendamentoAvisaComONovoHorarioDentroDaExecucaoSerializada() {
+		Agendamento reservado = reservar(DEZ_HORAS);
+
+		reagendar(reservado, CLIENTE_ID, CATORZE_HORAS);
+
+		assertThat(avisosDe(AvisosDoAgendamentoEmMemoria.Ocorrencia.REAGENDADO)).singleElement()
+				.satisfies(registrado -> {
+					assertThat(registrado.aviso().agendamentoId()).isEqualTo(reservado.id());
+					assertThat(registrado.aviso().inicio()).isEqualTo(CATORZE_HORAS);
+					assertThat(registrado.dentroDaExecucao()).isTrue();
+				});
 	}
 
 	@Test
