@@ -233,7 +233,8 @@ class ConsultarHorariosLivresUseCaseTest {
 		@Test
 		void recusaEstabelecimentoInativo() {
 			estabelecimentos.salvar(Estabelecimento.reconstituir(estabelecimento.id(), GESTOR_ID,
-					estabelecimento.nome(), null, endereco(), null, false, List.of(), estabelecimento.horarios()));
+					estabelecimento.nome(), null, endereco(), null, null, 0, false, List.of(),
+					estabelecimento.horarios()));
 
 			assertThatThrownBy(() -> consultar(SEGUNDA))
 					.isInstanceOf(RegraNegocioException.class)

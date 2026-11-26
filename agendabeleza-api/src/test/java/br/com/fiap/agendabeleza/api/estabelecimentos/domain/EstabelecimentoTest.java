@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.NotaMedia;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 
@@ -259,12 +261,14 @@ class EstabelecimentoTest {
 		@Test
 		void reconstituiComOsDadosGravados() {
 			Estabelecimento estabelecimento = Estabelecimento.reconstituir(id, GESTOR_ID, "Salão", "Desc",
-					endereco(), "America/Manaus", false, List.of(foto), List.of(segunda));
+					endereco(), "America/Manaus", new BigDecimal("4.50"), 12, false, List.of(foto), List.of(segunda));
 
 			assertThat(estabelecimento.id()).isEqualTo(id);
 			assertThat(estabelecimento.gestorId()).isEqualTo(GESTOR_ID);
 			assertThat(estabelecimento.nome()).isEqualTo("Salão");
 			assertThat(estabelecimento.timezone()).isEqualTo(ZoneId.of("America/Manaus"));
+			assertThat(estabelecimento.notaMedia()).isEqualTo(new BigDecimal("4.50"));
+			assertThat(estabelecimento.totalAvaliacoes()).isEqualTo(12);
 			assertThat(estabelecimento.ativo()).isFalse();
 			assertThat(estabelecimento.fotos()).containsExactly(foto);
 			assertThat(estabelecimento.horarios()).containsExactly(segunda);
@@ -275,7 +279,7 @@ class EstabelecimentoTest {
 			FotoEstabelecimento segundaFoto = new FotoEstabelecimento(UUID.randomUUID(), "https://cdn.exemplo.com/2.jpg", 2);
 
 			Estabelecimento estabelecimento = Estabelecimento.reconstituir(id, GESTOR_ID, "Salão", null,
-					endereco(), null, true, List.of(segundaFoto, foto), null);
+					endereco(), null, null, 0, true, List.of(segundaFoto, foto), null);
 
 			assertThat(estabelecimento.fotos()).containsExactly(foto, segundaFoto);
 			assertThat(estabelecimento.horarios()).isEmpty();
@@ -284,8 +288,31 @@ class EstabelecimentoTest {
 		@Test
 		void recusaSemId() {
 			assertThatThrownBy(() -> Estabelecimento.reconstituir(null, GESTOR_ID, "Salão", null,
-					endereco(), null, true, List.of(), List.of()))
+					endereco(), null, null, 0, true, List.of(), List.of()))
 					.hasMessage("id é obrigatório");
+		}
+
+	}
+
+	@Nested
+	class Avaliacoes {
+
+		@Test
+		void novoEstabelecimentoNaoTemAvaliacoes() {
+			Estabelecimento estabelecimento = estabelecimento();
+
+			assertThat(estabelecimento.notaMedia()).isNull();
+			assertThat(estabelecimento.totalAvaliacoes()).isZero();
+		}
+
+		@Test
+		void atualizaANotaMediaEOTotal() {
+			Estabelecimento estabelecimento = estabelecimento();
+
+			estabelecimento.atualizarAvaliacoes(NotaMedia.de(9, 2));
+
+			assertThat(estabelecimento.notaMedia()).isEqualTo(new BigDecimal("4.50"));
+			assertThat(estabelecimento.totalAvaliacoes()).isEqualTo(2);
 		}
 
 	}
