@@ -72,14 +72,16 @@ Cada métrica passa a ser medida na data indicada, conforme a lista de conferên
 
 ### 3.2 Carga
 
-As metas são próprias do projeto e podem ser ajustadas após a primeira medição em 23/11.
+As metas são próprias do projeto. Em 26/11 a carga foi revista para o Docker Compose local (seção 5), e os tempos-meta foram mantidos. Medição de referência: 26/11, no notebook de desenvolvimento, com a API em `target development` do Compose (porta 8082) e outro projeto em Docker na mesma máquina. Os relatórios HTML estão em `artefatos/carga/`.
 
-| Cenário | Carga | Meta | Local | AWS |
+| Cenário | Carga | Meta | Local (26/11) | Nuvem |
 |---|---|---|---|---|
-| Busca com filtros | 200 usuários simultâneos por 5 minutos | p95 < 500 ms, erros < 1% | - | - |
-| Consulta de horários livres | 200 usuários simultâneos por 5 minutos | p95 < 500 ms, erros < 1% | - | - |
-| Reservas em horários distintos | 100 reservas por segundo durante 2 minutos | p95 < 800 ms, erros < 1% | - | - |
-| Disputa pelo mesmo horário | 100 requisições simultâneas | Exatamente um 201 e 99 respostas 409 | - | - |
+| Busca com filtros | 100 usuários simultâneos por 2 minutos | p95 < 500 ms, erros < 1% | ✅ 12.270 requisições, 94 req/s, p50 12 ms, **p95 24 ms**, p99 31 ms, máx. 41 ms, 0 erros | não medida |
+| Consulta de horários livres | 100 usuários simultâneos por 2 minutos | p95 < 500 ms, erros < 1% | ✅ 12.178 requisições, 93 req/s, p50 19 ms, **p95 32 ms**, p99 43 ms, máx. 223 ms, 0 erros | não medida |
+| Reservas em horários distintos | 30 reservas por segundo durante 1 minuto | p95 < 800 ms, erros < 1% | ✅ 1.800 reservas aceitas, p50 20 ms, **p95 32 ms**, p99 45 ms, máx. 123 ms, 0 erros | não medida |
+| Disputa pelo mesmo horário | 100 requisições simultâneas | Exatamente um 201 e 99 respostas 409 | ✅ **1 × 201 e 99 × 409**, 1 agendamento no painel; 201 em 143 ms, 409 com p50 820 ms e máx. 1.235 ms | não medida |
+
+A carga não é repetida na plataforma gratuita: os limites de CPU, memória e hibernação do plano mediriam a plataforma, não a aplicação.
 
 ## 4. Marcos e funcionalidades
 
@@ -108,7 +110,7 @@ Cortes de escopo (seção 7 do planejamento), tarefas remanejadas e metas ajusta
 
 | Data | Mudança | Motivo | Impacto |
 |---|---|---|---|
-| - | - | - | - |
+| 26/11 | Carga dos testes Gatling revista: consultas com 100 usuários por 2 min (eram 200 por 5 min) e reservas a 30/s por 1 min (eram 100/s por 2 min). Tempos-meta mantidos | A medição é no Docker Compose local do notebook, que divide CPU com outro projeto, e não mais na AWS | Os números valem para o ambiente local; a nuvem gratuita não é medida |
 
 ## 6. Registros diários
 
@@ -496,3 +498,57 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - Gatling (reservas simultâneas e busca) e o deploy, onde o feed `.ics` será assinado no Google Calendar.
+
+### 28/11 (sábado): testes de carga com Gatling (3ª meta do dia, feita em 26/11, adiantada; branch `issue-2811`)
+
+**Resultado:** Concluído. Os 4 cenários da arquitetura §9.3 ficaram dentro das metas
+**Horas:** a preencher, de 1,5 h planejadas
+**Tarefas:** 1 de 1
+**Pronto quando:** atendido. Em 100 reservas simultâneas no mesmo horário, exatamente uma foi aceita, e os relatórios estão guardados em `artefatos/carga/`
+
+**Realizado**
+- Projeto Maven `agendabeleza-carga/`, com Gatling 3.16.1 e `gatling-maven-plugin` 4.22.3, na Java DSL.
+- Classes comuns:
+  - `ConfiguracaoDaCarga`: protocolo, intensidade por `-Dcarga.*`, metas e injeção das consultas;
+  - `PreparacaoDaCarga`: um salão novo por execução, criado pela API com o `HttpClient` do Java;
+  - `HorariosDistintos`: o feeder das reservas;
+  - `RequisicoesDaAgendaBeleza`: a reserva, usada por duas simulações.
+- Quatro simulações:
+  - `DisputaPeloMesmoHorarioSimulation`: 100 clientes no mesmo horário. A asserção exige 1 sucesso e 99 falhas, e o `after()` confere 1 agendamento no painel do gestor;
+  - `ReservasEmHorariosDistintosSimulation`: 30 reservas por segundo por 60 s;
+  - `BuscaComFiltrosSimulation`: 4 combinações de filtros, incluindo o trecho do nome e a disponibilidade;
+  - `HorariosLivresSimulation`.
+- Os números estão na seção 3.2, e os relatórios HTML, em `artefatos/carga/<cenário>/`. O modo de rodar está em `agendabeleza-carga/README.md`.
+- O teste de concorrência com Testcontainers, a outra parte da meta, já existia desde 23/11 (`ConcorrenciaAgendaTest`).
+- Commit `test:` sem `feat:`, porque nenhum código de produção mudou.
+
+**Fora do plano**
+- Os cenários de horários livres e de reservas distintas eram opcionais no planejamento (só reservas simultâneas e busca) e entraram por decisão do autor, cobrindo os 4 da arquitetura.
+
+**Métricas do dia**
+- Busca: 12.270 requisições, p95 24 ms. Horários livres: 12.178, p95 32 ms. Reservas distintas: 1.800 aceitas, p95 32 ms. Disputa: 1 × 201 e 99 × 409. Nenhum erro inesperado.
+- `./mvnw verify` da API não mudou: 747 testes, todos passando.
+
+**Desafios e soluções**
+- **Gatling e Spring Boot 4 no mesmo classpath.**
+  - *Como apareceu:* o Boot 4 gerencia as versões de Netty e Jackson, que o Gatling também usa. Juntá-los nos testes da API arriscaria quebrar os dois, e esse risco já estava listado no planejamento §7.
+  - *Solução:* um projeto Maven separado, sem o parent do Boot, executado pelo mesmo `mvnw` da API (`-f agendabeleza-carga/pom.xml`). O `verify` e o CI da API não mudaram.
+- **Reservas válidas em volume.**
+  - *Como apareceu:* 1.800 reservas precisam de 1.800 horários livres diferentes. Concentrar tudo num profissional mediria só a fila da trava dele.
+  - *Solução:* a preparação cria 10 profissionais com jornada de 16 horas todos os dias e um serviço de 15 minutos. O feeder alterna o profissional a cada reserva, a partir de 06/01/2031.
+- **Todas as reservas recusadas com 400 na primeira execução.**
+  - *Como apareceu:* o `toString()` do `OffsetDateTime` omite os segundos quando são zero (`2031-01-06T10:00-03:00`), e a API só aceita o início com segundos.
+  - *Solução:* um único formatador com segundos (`HorariosDistintos.inicio`), usado pelas duas simulações de reserva. A conferência no `after()` da disputa encerrou o build com falha nessa primeira execução, o que mostrou que a verificação final funciona.
+- **Provar "exatamente um" com o Gatling.**
+  - *Como apareceu:* o Gatling conta sucessos e falhas por requisição, mas não conhece a regra de negócio.
+  - *Solução:* duas verificações. A primeira aceita 201 ou 409, para que um 500 apareça com outra mensagem. A segunda exige 201, e assim cada 409 conta como falha esperada. As asserções exigem 1 sucesso e 99 falhas, e o `after()` confere no painel que só um agendamento foi gravado.
+
+**Riscos e decisões**
+- Na disputa, o 201 saiu em 143 ms, e os 409 tiveram mediana de 820 ms e máximo de 1.235 ms. As 100 reservas do mesmo profissional entram em fila na trava consultiva (`pg_advisory_xact_lock`), e cada uma espera a anterior terminar a transação. É a serialização projetada para reserva × bloqueio. Com profissionais diferentes, a fila some, como mostra o p95 de 32 ms das reservas distintas.
+- A busca por trecho do nome, sem índice (risco anotado em 26/11), ficou em p95 de 24 ms. Com o volume do projeto, o `LIKE '%trecho%'` não é gargalo.
+- A carga foi reduzida para o ambiente local (seção 5), e os números valem para ele. A nuvem gratuita não é medida.
+- Cada reserva grava 4 notificações na outbox: as 1.800 reservas geraram cerca de 7.200 e-mails enviados ao Mailpit pelo job.
+- Não há README na raiz do repositório. O item de 29/11 que manda testar o README em um clone limpo depende de escrevê-lo antes.
+
+**Próximo passo**
+- Deploy na plataforma gratuita com o perfil `production`. Depois, assinar o feed `.ics` no Google Calendar pelo endereço público.

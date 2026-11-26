@@ -426,14 +426,16 @@ As duas reservas partem de duas threads presas numa `CyclicBarrier` e chegam jun
 
 ### 9.3 Cenários de carga
 
-As metas abaixo são próprias do projeto, já que o enunciado não define números. Elas podem ser ajustadas após a primeira medição em 23/11.
+As metas são próprias do projeto, já que o enunciado não define números. A carga original (200 usuários por 5 minutos e 100 reservas por segundo por 2 minutos) foi pensada para a AWS. Em 26/11 ela foi revista para o Docker Compose local do notebook, onde a medição é feita. Os tempos-meta não mudaram.
 
-| Cenário | Carga | Meta |
-|---|---|---|
-| Busca com filtros | 200 usuários simultâneos por 5 minutos | p95 < 500 ms, erros < 1% |
-| Consulta de horários livres | 200 usuários simultâneos por 5 minutos | p95 < 500 ms, erros < 1% |
-| Reservas em horários distintos | 100 reservas por segundo durante 2 minutos | p95 < 800 ms, erros < 1% |
-| Disputa pelo mesmo horário | 100 requisições simultâneas | Exatamente um 201 e 99 respostas 409 |
+| Cenário | Simulação | Carga | Meta |
+|---|---|---|---|
+| Busca com filtros | `BuscaComFiltrosSimulation` | 100 usuários simultâneos por 2 minutos, com rampa de 10 s e pausa de 1 s | p95 < 500 ms, erros < 1% |
+| Consulta de horários livres | `HorariosLivresSimulation` | 100 usuários simultâneos por 2 minutos, com rampa de 10 s e pausa de 1 s | p95 < 500 ms, erros < 1% |
+| Reservas em horários distintos | `ReservasEmHorariosDistintosSimulation` | 30 reservas por segundo durante 1 minuto (1.800) | p95 < 800 ms, erros < 1% |
+| Disputa pelo mesmo horário | `DisputaPeloMesmoHorarioSimulation` | 100 requisições simultâneas | Exatamente um 201 e 99 respostas 409 |
+
+As simulações ficam no projeto Maven separado `agendabeleza-carga/`, com Gatling 3.16 na Java DSL e sem o parent do Spring Boot, para não misturar as versões de Netty e Jackson do Boot 4 com as do Gatling. Elas rodam contra a API no ar (`agendabeleza-api/mvnw -f agendabeleza-carga/pom.xml gatling:test -Dgatling.simulationClass=...`), fora do CI; o modo de rodar está em `agendabeleza-carga/README.md`. Antes da carga, cada simulação cria pela API um salão novo (`PreparacaoDaCarga`), com funcionamento e jornada todos os dias das 06:00 às 22:00 e serviço de 15 minutos. As metas são asserções do Gatling, e uma meta não atingida termina o Maven com falha. Na disputa, uma verificação final no painel do gestor exige um único agendamento gravado. Os relatórios HTML da medição de referência estão em `artefatos/carga/`, e os números, no relatório de desenvolvimento, seção 3.2.
 
 ## 10. CI/CD
 
