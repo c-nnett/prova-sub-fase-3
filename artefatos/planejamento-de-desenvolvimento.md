@@ -153,9 +153,9 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 #### Qui 26/11 (2h): avaliações
 
-- [ ] Em TDD: `Avaliacao` e o caso de uso de avaliar. Recusar nota fora de 1 a 5, agendamento não concluído e cliente diferente.
-- [ ] Criar migração `V4`, endpoints de criar e listar e atualização da nota média na mesma transação.
-- [ ] Escrever a feature BDD de avaliação.
+- [x] Em TDD: `Avaliacao` e o caso de uso de avaliar. Recusar nota fora de 1 a 5, agendamento não concluído e cliente diferente.
+- [x] Criar migração `V4`, endpoints de criar e listar e atualização da nota média na mesma transação. (A migração segue a convenção de timestamp: `V1_1795657196611__criar_tabela_avaliacao.sql`.)
+- [x] Escrever a feature BDD de avaliação. (Meta de 26/11 concluída em 25/11.)
 
 **Pronto quando:** a nota média muda após uma avaliação, e uma segunda avaliação do mesmo agendamento é recusada. **Funcionalidade 4 pronta.**
 
