@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.NotaMedia;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 
 /**
@@ -183,6 +184,12 @@ public class Profissional {
 
 	public int totalAvaliacoes() {
 		return totalAvaliacoes;
+	}
+
+	/** Notas recalculadas pelo módulo de avaliações a partir de todas as avaliações do profissional. */
+	public void atualizarAvaliacoes(NotaMedia notas) {
+		this.notaMedia = notas.media();
+		this.totalAvaliacoes = notas.total();
 	}
 
 	public boolean ativo() {

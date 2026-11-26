@@ -1,5 +1,6 @@
 package br.com.fiap.agendabeleza.api.estabelecimentos.adapters.out.persistence;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,6 +66,14 @@ class EstabelecimentoJpaEntity {
 
 	@Column(nullable = false, length = 50)
 	private String timezone;
+
+	/** Só leitura no JPA: gravada por {@link EstabelecimentoJpaRepository#atualizarAvaliacoes}. */
+	@Column(name = "nota_media", precision = 3, scale = 2, insertable = false, updatable = false)
+	private BigDecimal notaMedia;
+
+	/** Só leitura no JPA; o padrão 0 vem do banco. */
+	@Column(name = "total_avaliacoes", nullable = false, insertable = false, updatable = false)
+	private int totalAvaliacoes;
 
 	@Column(nullable = false)
 	private boolean ativo;

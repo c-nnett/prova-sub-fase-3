@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import br.com.fiap.agendabeleza.api.compartilhado.domain.NotaMedia;
 import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalRepository;
 import br.com.fiap.agendabeleza.api.profissionais.domain.PeriodoTrabalho;
 import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
@@ -48,6 +49,12 @@ class ProfissionalJpaAdapter implements ProfissionalRepository {
 				.toList();
 	}
 
+	@Override
+	@Transactional
+	public void atualizarAvaliacoes(UUID profissionalId, NotaMedia notas) {
+		repositorio.atualizarAvaliacoes(profissionalId, notas.media(), notas.total());
+	}
+
 	private static ProfissionalJpaEntity paraEntidade(Profissional origem) {
 		ProfissionalJpaEntity entidade = new ProfissionalJpaEntity();
 		entidade.setId(origem.id());
@@ -56,8 +63,6 @@ class ProfissionalJpaAdapter implements ProfissionalRepository {
 		entidade.setNome(origem.nome());
 		entidade.setEmail(origem.email());
 		entidade.setBio(origem.bio());
-		entidade.setNotaMedia(origem.notaMedia());
-		entidade.setTotalAvaliacoes(origem.totalAvaliacoes());
 		entidade.setAtivo(origem.ativo());
 		entidade.getEspecialidadeIds().addAll(origem.especialidadeIds());
 		for (ServicoProfissional servico : origem.servicos()) {

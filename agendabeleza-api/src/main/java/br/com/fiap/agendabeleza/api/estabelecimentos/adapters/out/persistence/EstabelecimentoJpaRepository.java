@@ -1,8 +1,23 @@
 package br.com.fiap.agendabeleza.api.estabelecimentos.adapters.out.persistence;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 interface EstabelecimentoJpaRepository extends JpaRepository<EstabelecimentoJpaEntity, UUID> {
+
+	/** SQL nativo: as colunas são {@code updatable = false} na entidade e só mudam por aqui. */
+	@Modifying(flushAutomatically = true, clearAutomatically = true)
+	@Query(value = """
+			update estabelecimento
+			   set nota_media = :notaMedia, total_avaliacoes = :totalAvaliacoes
+			 where id = :id
+			""", nativeQuery = true)
+	int atualizarAvaliacoes(@Param("id") UUID id, @Param("notaMedia") BigDecimal notaMedia,
+			@Param("totalAvaliacoes") int totalAvaliacoes);
+
 }

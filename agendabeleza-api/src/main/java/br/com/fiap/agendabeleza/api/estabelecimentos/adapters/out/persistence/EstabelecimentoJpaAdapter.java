@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import br.com.fiap.agendabeleza.api.compartilhado.domain.NotaMedia;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.EstabelecimentoRepository;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Endereco;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Estabelecimento;
@@ -37,6 +38,12 @@ class EstabelecimentoJpaAdapter implements EstabelecimentoRepository {
 	@Transactional(readOnly = true)
 	public Optional<Estabelecimento> buscarPorId(UUID id) {
 		return repositorio.findById(id).map(EstabelecimentoJpaAdapter::paraDominio);
+	}
+
+	@Override
+	@Transactional
+	public void atualizarAvaliacoes(UUID estabelecimentoId, NotaMedia notas) {
+		repositorio.atualizarAvaliacoes(estabelecimentoId, notas.media(), notas.total());
 	}
 
 	private static EstabelecimentoJpaEntity paraEntidade(Estabelecimento origem) {
@@ -87,6 +94,8 @@ class EstabelecimentoJpaAdapter implements EstabelecimentoRepository {
 				entidade.getDescricao(),
 				endereco,
 				entidade.getTimezone(),
+				entidade.getNotaMedia(),
+				entidade.getTotalAvaliacoes(),
 				entidade.isAtivo(),
 				entidade.getFotos().stream()
 						.map(foto -> new FotoEstabelecimento(foto.getId(), foto.getUrl(), foto.getOrdem()))
