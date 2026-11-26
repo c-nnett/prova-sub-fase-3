@@ -252,3 +252,45 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - Abrir o PR da `issue-2411` (funcionalidade 6 completa). No merge com a `issue-2511`, ordenar os registros diários 23/11 → 24/11 → 25/11.
+
+### 26/11 (quinta): avaliações (feita em 25/11, adiantada; branch `issue-2611`)
+
+**Resultado:** Concluído um dia antes do planejado. **Funcionalidade 4 pronta**
+**Horas:** a preencher, de 2 h planejadas
+**Tarefas:** 3 de 3
+**Pronto quando:** atendido, comprovado pela feature BDD. Depois de uma avaliação, a nota média do salão e a da profissional mudam, e a segunda avaliação do mesmo atendimento é recusada com 422
+
+**Realizado**
+- `POST /api/v1/agendamentos/{id}/avaliacao`: só o cliente do agendamento, só para atendimento `CONCLUIDO`, uma vez; notas de 1 a 5 para o estabelecimento e para o profissional, e comentário opcional.
+- `GET /api/v1/estabelecimentos/{id}/avaliacoes` e `GET /api/v1/profissionais/{id}/avaliacoes`: listas públicas, da mais recente para a mais antiga, sem o `clienteId`.
+- `GET /estabelecimentos/{id}` passou a devolver `notaMedia` e `totalAvaliacoes`, como o profissional já fazia.
+- Migração `V1_1795657196611__criar_tabela_avaliacao.sql`.
+- Feature `avaliacoes/avaliacao_atendimento.feature`, com o fluxo inteiro pela API: cadastro, reserva, confirmação, conclusão e avaliação.
+- Em TDD: dois `test:` (domínio e casos de uso; persistência, controller e BDD) e um `feat:`.
+
+**Fora do plano**
+- Correção de um *lost update* que já existia: o `salvar` do profissional regravava `nota_media` e `total_avaliacoes` com o valor lido antes. Com as avaliações, uma edição de perfil simultânea apagaria a nota recém-calculada.
+- `ApiDaAplicacao` extraída do `EstabelecimentoSteps`, para os passos BDD não repetirem a montagem das requisições.
+
+**Métricas do dia**
+- Testes: 540 no `./mvnw verify`, todos passando (eram 478), com as regras de cobertura do JaCoCo atendidas. 9 cenários BDD, todos verdes.
+- Cobertura de linhas: 100% em `avaliacoes.domain`, `avaliacoes.application` e `compartilhado.domain`.
+
+**Desafios e soluções**
+- **Média exata e sem perder avaliações simultâneas.**
+  - *Como apareceu:* `nota_media` é `numeric(3,2)`. Uma média incremental (`(media * total + nota) / (total + 1)`) acumularia o arredondamento a cada avaliação. Duas avaliações do mesmo estabelecimento ao mesmo tempo poderiam ler o mesmo total e gravar uma por cima da outra.
+  - *Solução:* a média é sempre recalculada da soma e da contagem das notas gravadas (`NotaMedia.de`, domínio puro), dentro de `ExecucaoSerializada` com a chave do estabelecimento, a mesma porta que já serializa reserva e bloqueio por profissional. A trava e a transação vêm juntas, e como o profissional pertence a um único estabelecimento, uma trava só cobre as duas médias, sem risco de deadlock entre duas travas.
+- **Notas sobrescritas por outras gravações.**
+  - *Como apareceu:* os adapters de estabelecimento e profissional montam a entidade inteira a cada `salvar`. Com as notas mapeadas, uma edição feita com dados lidos antes da avaliação gravaria a nota antiga por cima.
+  - *Solução:* as colunas ficaram `insertable = false, updatable = false` nas entidades, e só mudam pelo `atualizarAvaliacoes` das portas `EstabelecimentoRepository` e `ProfissionalRepository`, com `update` nativo. O `AvaliacaoPersistenciaTest` comprova que uma edição com dados antigos preserva as notas.
+- **Concluir um atendimento no BDD.**
+  - *Como apareceu:* a reserva exige início no futuro, e o "concluir" só vale a partir do início. Com o relógio real, o cenário não conseguiria chegar a um atendimento concluído pela API.
+  - *Solução:* `RelogioAjustavel`, um `Clock` `@Primary` só no contexto do Cucumber. O passo reserva para 2030, fixa o "agora" para depois do atendimento e conclui. Cada cenário volta ao relógio real no fim.
+
+**Riscos e decisões**
+- A segunda avaliação é recusada com 422 (`RegraNegocioException`), e não com 409, porque o 409 fica reservado para conflito de horário e de versão. A restrição única só seria acionada fora da trava, e nesse caso cairia no 409 genérico de integridade.
+- As listas não são paginadas, como `/agendamentos/meus`. A paginação entra com a busca de 27/11, se for preciso.
+- O `Location` do 201 aponta para a lista de avaliações do estabelecimento, porque não há consulta individual de avaliação.
+
+**Próximo passo**
+- PR da `issue-2611` e busca com filtros (funcionalidade 5).

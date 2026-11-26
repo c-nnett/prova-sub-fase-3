@@ -193,7 +193,7 @@ class AgendamentoUseCasesTest {
 	@Test
 	void recusaEstabelecimentoInativo() {
 		estabelecimentos.salvar(Estabelecimento.reconstituir(estabelecimento.id(), GESTOR_ID, "Salão Bela Vista",
-				null, endereco(), null, false, List.of(), estabelecimento.horarios()));
+				null, endereco(), null, null, 0, false, List.of(), estabelecimento.horarios()));
 
 		assertRecusa(DEZ_HORAS, "O estabelecimento está inativo");
 	}

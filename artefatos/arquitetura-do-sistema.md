@@ -252,10 +252,12 @@ Resposta de horários livres, com os horários no fuso do estabelecimento e `fim
 
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| POST | `/agendamentos/{id}/avaliacao` | Cliente do agendamento | Avalia atendimento concluído |
-| GET | `/estabelecimentos/{id}/avaliacoes` | Público | Lista avaliações |
-| GET | `/profissionais/{id}/avaliacoes` | Público | Lista avaliações |
+| POST | `/agendamentos/{id}/avaliacao` | Cliente do agendamento | Avalia atendimento concluído com `{ "notaEstabelecimento", "notaProfissional", "comentario"? }`, notas de 1 a 5 e comentário de até 1000 caracteres. Responde 201, 400 para nota ausente ou fora da escala e comentário longo, 404 para agendamento inexistente, 403 para quem não é o cliente e 422 para atendimento não concluído ou já avaliado |
+| GET | `/estabelecimentos/{id}/avaliacoes` | Público | Lista avaliações, da mais recente para a mais antiga, sem o `clienteId`. 404 se o estabelecimento não existir |
+| GET | `/profissionais/{id}/avaliacoes` | Público | Lista avaliações, da mais recente para a mais antiga, sem o `clienteId`. 404 se o profissional não existir |
 | GET | `/busca/estabelecimentos` | Público | Busca paginada com filtros |
+
+A avaliação roda em `ExecucaoSerializada` com a chave do estabelecimento, que já abre uma transação e serializa as avaliações dele. Dentro dela, o caso de uso grava a avaliação e recalcula a nota média e o total do estabelecimento e do profissional a partir da soma de todas as avaliações (`NotaMedia`, duas casas, arredondamento `HALF_UP`). Como o profissional pertence a um único estabelecimento, a mesma trava protege as duas médias. As colunas `nota_media` e `total_avaliacoes` são só leitura nas entidades JPA e mudam apenas por `atualizarAvaliacoes`, para que uma edição do gestor ou do perfil feita ao mesmo tempo não sobrescreva as notas. `GET /estabelecimentos/{id}` e `GET /profissionais/{id}` devolvem `notaMedia` (nula até a primeira avaliação) e `totalAvaliacoes`.
 
 Filtros de `/busca/estabelecimentos`, combináveis entre si:
 

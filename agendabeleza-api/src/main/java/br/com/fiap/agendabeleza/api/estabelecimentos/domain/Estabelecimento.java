@@ -4,6 +4,7 @@ import static br.com.fiap.agendabeleza.api.compartilhado.domain.Validacoes.obrig
 import static br.com.fiap.agendabeleza.api.compartilhado.domain.Validacoes.textoObrigatorio;
 import static br.com.fiap.agendabeleza.api.compartilhado.domain.Validacoes.textoOpcional;
 
+import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.ZoneId;
@@ -18,6 +19,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.NotaMedia;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 
@@ -36,6 +38,8 @@ public class Estabelecimento {
 	private String descricao;
 	private Endereco endereco;
 	private ZoneId timezone;
+	private BigDecimal notaMedia;
+	private int totalAvaliacoes;
 	private boolean ativo;
 	private final List<FotoEstabelecimento> fotos = new ArrayList<>();
 	private final Map<DayOfWeek, HorarioFuncionamento> horarios = new EnumMap<>(DayOfWeek.class);
@@ -54,11 +58,14 @@ public class Estabelecimento {
 	}
 
 	/** Recria o agregado a partir dos dados gravados, aplicando as mesmas validações do cadastro. */
+	@SuppressWarnings("java:S107") // Mesmas colunas da tabela estabelecimento, mais fotos e horários.
 	public static Estabelecimento reconstituir(UUID id, UUID gestorId, String nome, String descricao,
-			Endereco endereco, String timezone, boolean ativo, Collection<FotoEstabelecimento> fotos,
-			Collection<HorarioFuncionamento> horarios) {
+			Endereco endereco, String timezone, BigDecimal notaMedia, int totalAvaliacoes, boolean ativo,
+			Collection<FotoEstabelecimento> fotos, Collection<HorarioFuncionamento> horarios) {
 		Estabelecimento estabelecimento = new Estabelecimento(id, gestorId);
 		estabelecimento.atualizarDados(nome, descricao, endereco, timezone);
+		estabelecimento.notaMedia = notaMedia;
+		estabelecimento.totalAvaliacoes = totalAvaliacoes;
 		estabelecimento.ativo = ativo;
 		estabelecimento.definirHorarios(horarios);
 		if (fotos != null) {
@@ -160,6 +167,21 @@ public class Estabelecimento {
 
 	public ZoneId timezone() {
 		return timezone;
+	}
+
+	/** Nula até a primeira avaliação. */
+	public BigDecimal notaMedia() {
+		return notaMedia;
+	}
+
+	public int totalAvaliacoes() {
+		return totalAvaliacoes;
+	}
+
+	/** Notas recalculadas pelo módulo de avaliações a partir de todas as avaliações do estabelecimento. */
+	public void atualizarAvaliacoes(NotaMedia notas) {
+		this.notaMedia = notas.media();
+		this.totalAvaliacoes = notas.total();
 	}
 
 	public boolean ativo() {

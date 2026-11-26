@@ -50,10 +50,12 @@ class ProfissionalJpaEntity {
 	@Column(columnDefinition = "text")
 	private String bio;
 
-	@Column(name = "nota_media", precision = 3, scale = 2)
+	/** Só leitura no JPA: gravada por {@link ProfissionalJpaRepository#atualizarAvaliacoes}. */
+	@Column(name = "nota_media", precision = 3, scale = 2, insertable = false, updatable = false)
 	private BigDecimal notaMedia;
 
-	@Column(name = "total_avaliacoes", nullable = false)
+	/** Só leitura no JPA; o padrão 0 vem do banco. */
+	@Column(name = "total_avaliacoes", nullable = false, insertable = false, updatable = false)
 	private int totalAvaliacoes;
 
 	@Column(nullable = false)

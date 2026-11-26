@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
+import br.com.fiap.agendabeleza.api.compartilhado.domain.NotaMedia;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
 
 class ProfissionalTest {
@@ -286,6 +287,21 @@ class ProfissionalTest {
 			assertThatThrownBy(() -> Profissional.reconstituir(null, ESTABELECIMENTO_ID, null, "Bia", "bia@salao.com",
 					null, null, 0, true, null, null, null))
 					.hasMessage("id é obrigatório");
+		}
+
+	}
+
+	@Nested
+	class Avaliacoes {
+
+		@Test
+		void atualizaANotaMediaEOTotal() {
+			Profissional profissional = profissional();
+
+			profissional.atualizarAvaliacoes(NotaMedia.de(13, 3));
+
+			assertThat(profissional.notaMedia()).isEqualTo(new BigDecimal("4.33"));
+			assertThat(profissional.totalAvaliacoes()).isEqualTo(3);
 		}
 
 	}
