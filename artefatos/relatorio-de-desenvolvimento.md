@@ -346,25 +346,26 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 **Próximo passo**
 - PR da `issue-2611` e busca com filtros (funcionalidade 5).
 
-### 27/11 (sexta): busca e filtros, meta 1 (feita em 26/11, adiantada; branch `issue-2711`)
+### 27/11 (sexta): busca e filtros (feita em 26/11, adiantada, em duas metas; branch `issue-2711`)
 
-**Resultado:** Meta 1 de 2 concluída um dia antes do planejado. Funcionalidade 5 quase pronta: falta o filtro de disponibilidade
+**Resultado:** Concluído um dia antes do planejado. **Funcionalidade 5 pronta**
 **Horas:** a preencher, de 2 h planejadas para o dia
-**Tarefas:** 1,5 de 2 (migração feita; rota publicada sem disponibilidade)
-**Pronto quando:** atendido para os filtros desta meta. Os filtros funcionam combinados, e a resposta é paginada, comprovado pelo `BuscaPersistenciaTest`
+**Tarefas:** 2 de 2
+**Pronto quando:** atendido. Os filtros funcionam combinados, inclusive a disponibilidade, e a resposta é paginada, comprovado pelo `BuscaPersistenciaTest`
 
 **Realizado**
 - `GET /api/v1/busca/estabelecimentos`, público: `nome`, `cidade`, `bairro`, `servico`, `categoria`, `notaMinima`, `precoMinimo`, `precoMaximo`, `pagina`, `tamanho` (padrão 20, máximo 50) e `ordem` (`MELHOR_AVALIADOS`, padrão, ou `NOME`). Resposta `{ itens, pagina, tamanho, totalDeItens, totalDePaginas }`.
 - Migração `V1_1795662281145__criar_indices_busca.sql`: `idx_estabelecimento_cidade_bairro`, `idx_estabelecimento_nota` e `idx_servico_categoria`, todos parciais (`WHERE ativo`).
 - `Paginacao` e `Pagina` em `compartilhado/domain`, reutilizáveis por outras listas; `FiltroDaBusca`, `OrdemDaBusca` e `EstabelecimentoEncontrado` no domínio da busca; `BuscarEstabelecimentosUseCase` e a porta `CatalogoDeEstabelecimentos`.
 - Em TDD: `test:` → `feat:` do núcleo, depois `test:` → `feat:` da persistência e do controller.
+- Meta 2, disponibilidade: `data`, `horaInicio` e `horaFim`. `JanelaDeDisponibilidade` no domínio (422 para data no passado, hora sem data e janela vazia ou invertida), `Clock` no caso de uso, entidades somente leitura de jornada e funcionamento e um segundo `EXISTS` na `Specification`. Sem migração. Também em `test:` → `feat:`, duas vezes.
 
 **Fora do plano**
 - Nenhum.
 
 **Métricas do dia**
-- Testes: 661 no `./mvnw verify`, todos passando (eram 595), com as regras de cobertura do JaCoCo atendidas. 9 cenários BDD, todos verdes.
-- Cobertura de linhas: 100% em `busca.domain`, `busca.application` e `compartilhado.domain`; 90,7% no adaptador de persistência da busca.
+- Testes: 690 no `./mvnw verify`, todos passando (eram 595; 661 ao fim da meta 1), com as regras de cobertura do JaCoCo atendidas. 9 cenários BDD, todos verdes.
+- Cobertura de linhas: 100% em `busca.domain`, `busca.application` e `compartilhado.domain`; 91% no adaptador de persistência da busca.
 
 **Desafios e soluções**
 - **Ler cadastros de outros módulos sem quebrar a arquitetura.**
@@ -376,6 +377,12 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - **Páginas estáveis e sem avaliação no fim.**
   - *Como apareceu:* no PostgreSQL, `ORDER BY nota_media DESC` põe os nulos primeiro, e empates sem desempate podem trocar de página entre consultas.
   - *Solução:* `Sort.Order.desc("notaMedia").nullsLast()`, desempate por nome e por identificador, e ordem fechada em enum, em vez de um `sort` livre com nome de propriedade.
+- **Disponível em quê, sem calcular a agenda de todos os profissionais.**
+  - *Como apareceu:* os horários livres reais vêm de `AgendaProfissional`, por profissional e por serviço. Rodar esse cálculo para cada candidato da busca seria lento e impediria paginar no banco.
+  - *Solução:* a busca responde "pode atender nesse horário", e os horários livres respondem "a que horas". Um `EXISTS` exige um profissional ativo com jornada, funcionamento e janela com um instante em comum; para três intervalos semiabertos, isso é todo início anterior a todo fim, seis comparações simples. Com filtro de serviço, o mesmo profissional precisa executar o serviço, para não mostrar um salão em que só a manicure trabalha no dia.
+- **"Hoje" sem fuso do estabelecimento.**
+  - *Como apareceu:* a validação de data no passado depende do fuso, mas a busca abrange estabelecimentos de vários lugares.
+  - *Solução:* "hoje" é o dia no fuso padrão (`America/Sao_Paulo`), com o `Clock` injetado; o teste fixa um instante que ainda é o dia anterior em São Paulo. A data e as horas da janela não são convertidas, porque estão no fuso de cada estabelecimento, como as colunas `time`.
 - **Texto digitado na busca.**
   - *Como apareceu:* `%` e `_` são curingas do `LIKE`, então buscar "100%" encontraria "1000".
   - *Solução:* os curingas são escapados, e os valores vão como parâmetros da consulta, já em minúsculas, nunca como literal no SQL.
@@ -384,7 +391,8 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - Os parâmetros usam nomes completos (`precoMinimo`, `pagina`, `tamanho`, `ordem`), e não `precoMin`/`page`/`size`/`sort`, como previa a arquitetura, pela diretriz de nomes sem abreviação.
 - Limites de cada parâmetro respondem 400 (validação de método do Spring MVC); a faixa de preço invertida é regra entre campos, do domínio, e responde 422.
 - Sem `pg_trgm`, o trecho do nome não usa índice. Aceitável no volume do projeto; o teste de carga da busca (28/11) vai medir.
-- A disponibilidade, primeiro item da ordem de corte, vai considerar só a jornada do profissional no dia da semana e o funcionamento, sem descontar agendamentos e bloqueios.
+- A disponibilidade, primeiro item da ordem de corte, considera só a jornada do profissional no dia da semana e o funcionamento, sem descontar agendamentos e bloqueios: um salão com a agenda cheia ainda aparece. Decisão do autor, para caber nas 2 h do dia.
+- Data no passado, hora sem data e janela invertida respondem 422, como as outras regras entre parâmetros; data ou hora malformada responde 400.
 
 **Próximo passo**
-- Meta 2: filtro de disponibilidade (`data`, `horaInicio`, `horaFim`) e PR da `issue-2711`.
+- PR da `issue-2711`. Depois, 28/11: feed `.ics`, carga e deploy.
