@@ -455,3 +455,44 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - PR da `issue-2811`. Depois, BDD de agendamento, Gatling e deploy, onde o feed será assinado no Google Calendar.
+
+### 28/11 (sábado): feature BDD de agendamento (2ª meta do dia, feita em 26/11, adiantada; branch `issue-2811`)
+
+**Resultado:** Concluído
+**Horas:** a preencher, de 0,5 h planejada
+**Tarefas:** 1 de 1
+**Pronto quando:** atendido. A feature de agendamento roda no `./mvnw verify`, com a disputa pelo mesmo horário comprovada por HTTP
+
+**Realizado**
+- `features/agendamentos/agendamento.feature`, com 4 cenários:
+  - a reserva de um horário livre, que deixa de aparecer em `horarios-livres`;
+  - dois clientes no mesmo horário ao mesmo tempo, com exatamente um 201 e um 409 "O profissional já tem um agendamento nesse horário";
+  - a reserva fora da jornada, recusada com 422 "O horário está fora do atendimento do profissional";
+  - o cancelamento depois da confirmação do gestor, que devolve o horário aos livres para outro cliente reservar.
+- `bdd/AgendamentoSteps` e, num `refactor:` anterior, `bdd/SalaoDoCenario`. Este recebeu o passo do salão, que estava em `AvaliacaoSteps`, e os auxiliares `reservar` e `horariosLivresEm`. `idCriado`, `exigirSucesso` e o novo `exigirRecusa` foram para a base `ApiDaAplicacao`.
+- Commits: `refactor:` (os 9 cenários continuaram verdes) e `test:`. Não há `feat:`, porque o comportamento já existia e estava coberto por testes de unidade, de persistência e de controller. A feature descreve o fluxo de ponta a ponta e o protege.
+
+**Fora do plano**
+- Nenhum.
+
+**Métricas do dia**
+- Testes: 747 no `./mvnw verify`, todos passando, com as regras de cobertura do JaCoCo atendidas.
+- Cenários BDD: 13 (eram 9), todos verdes.
+- A disputa passou em 3 rodadas seguidas. Com o 409 trocado de propósito por 422, o cenário falhou ("expected: 422 but was: 409"); a troca foi desfeita.
+
+**Desafios e soluções**
+- **O mesmo salão em duas features.**
+  - *Como apareceu:* o passo "um salão com a profissional..." vale para todas as features, porque o Cucumber liga passos pelo texto. O estado, porém, ficava em `AvaliacaoSteps`, e uma classe que declara passos não pode ser herdada.
+  - *Solução:* o passo e os ids foram para `SalaoDoCenario`. O Cucumber-Spring cria uma instância por cenário, e os passos de avaliação e de agendamento a recebem por `@Autowired`.
+- **Concorrência de verdade, pela API.**
+  - *Como apareceu:* duas chamadas em sequência só testariam o 409 do segundo pedido, sem disputa.
+  - *Solução:* duas threads presas numa `CyclicBarrier` disparam juntas, cada uma com um cliente. O passo exige exatamente um 201 e a mensagem do 409 no outro.
+- **Comparar horários sem depender do formato.**
+  - *Como apareceu:* os horários livres voltam no fuso do estabelecimento, e o texto do offset pode variar.
+  - *Solução:* o Gherkin e a resposta viram `Instant` antes da comparação.
+
+**Riscos e decisões**
+- Os cenários usam 11/03/2030, uma segunda no futuro distante, com o relógio real. Cada cenário cria um salão novo, então os horários não colidem com os de outras features.
+
+**Próximo passo**
+- Gatling (reservas simultâneas e busca) e o deploy, onde o feed `.ics` será assinado no Google Calendar.

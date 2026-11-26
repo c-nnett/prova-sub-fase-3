@@ -408,19 +408,21 @@ As features ficam em `src/test/resources/features/<modulo>/`, escritas em Gherki
 | Feature | Cenários | Desde |
 |---|---|---|
 | `estabelecimentos/cadastro_estabelecimento.feature` | Cadastro com horários e consulta pública, serviço, foto, dados inválidos (400 e 422) e alteração por outro usuário (403) | 22/11 |
+| `avaliacoes/avaliacao_atendimento.feature` | Avaliação de atendimento concluído com as notas médias atualizadas, e segunda avaliação recusada (422) | 25/11 |
+| `agendamentos/agendamento.feature` | Reserva que tira o horário dos livres, dois clientes no mesmo horário ao mesmo tempo (exatamente um 201 e um 409), reserva fora da jornada (422) e cancelamento que devolve o horário a outro cliente | 26/11 |
 
-Exemplo previsto para os agendamentos:
+O salão dos cenários de avaliação e de agendamento (gestor, serviço "Corte" e uma profissional que atende às segundas) fica em `bdd/SalaoDoCenario`. Os passos das duas features o recebem por `@Autowired`, já que uma classe que declara passos não pode ser herdada no Cucumber. A base `ApiDaAplicacao` reúne os auxiliares `idCriado`, `exigirSucesso` e `exigirRecusa` (status e `detail` do problem+json).
+
+O cenário da disputa:
 
 ```gherkin
-# language: pt
-Funcionalidade: Agendamento de serviços
-
-  Cenário: Dois clientes tentam reservar o mesmo horário
-    Dado um profissional com horário livre em "2026-12-10T14:00:00-03:00"
-    Quando dois clientes solicitam esse horário ao mesmo tempo
-    Então um agendamento é criado com status 201
-    E a outra solicitação recebe status 409
+  Cenário: Dois clientes tentam reservar o mesmo horário ao mesmo tempo
+    Quando dois clientes solicitam o horário de "2030-03-11T14:00:00-03:00" ao mesmo tempo
+    Então exatamente uma reserva é criada com status 201
+    E a outra é recusada com status 409 e a mensagem "O profissional já tem um agendamento nesse horário"
 ```
+
+As duas reservas partem de duas threads presas numa `CyclicBarrier` e chegam juntas ao servidor real, por HTTP. Ele é a mesma prova do `ConcorrenciaAgendaTest`, agora de ponta a ponta.
 
 ### 9.3 Cenários de carga
 
