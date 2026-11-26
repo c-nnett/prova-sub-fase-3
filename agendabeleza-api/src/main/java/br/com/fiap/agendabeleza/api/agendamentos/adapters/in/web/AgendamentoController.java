@@ -45,14 +45,16 @@ class AgendamentoController {
 
 	@PostMapping
 	@Operation(summary = "Reserva um horário", description = "O usuário do cabeçalho é o cliente. O preço é a "
-			+ "tarifa do profissional para o serviço. Responde 404 se o profissional ou o serviço não existir, 422 "
+			+ "tarifa do profissional para o serviço. A confirmação vai por e-mail para o cliente (emailCliente) e "
+			+ "para o profissional, depois da reserva. Responde 400 se faltar um campo obrigatório ou se o "
+			+ "emailCliente for inválido, 404 se o profissional ou o serviço não existir, 422 "
 			+ "se o horário estiver no passado, fora do atendimento ou em um bloqueio do profissional, ou se ele não "
 			+ "executar o serviço, "
 			+ "e 409 se o profissional já tiver um agendamento que se sobrepõe ao horário.")
 	ResponseEntity<AgendamentoResponse> criar(
 			@Parameter(description = "Identificador do cliente que faz a reserva") @RequestHeader(USUARIO) UUID usuarioId,
 			@Valid @RequestBody AgendamentoRequest requisicao) {
-		Agendamento criado = criar.executar(new CriarAgendamentoUseCase.Comando(usuarioId,
+		Agendamento criado = criar.executar(new CriarAgendamentoUseCase.Comando(usuarioId, requisicao.emailCliente(),
 				requisicao.profissionalId(), requisicao.servicoId(), requisicao.inicio(), requisicao.observacoes()));
 		URI local = ServletUriComponentsBuilder.fromCurrentContextPath()
 				.path("/api/v1/agendamentos/{id}").buildAndExpand(criado.id()).toUri();

@@ -6,6 +6,8 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AvisoDoAgendamento;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AvisosDoAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.compartilhado.application.port.ExecucaoSerializada;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.Intervalo;
@@ -19,20 +21,23 @@ import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalR
  * <p>
  * O novo horário passa pelas mesmas verificações da reserva, sem contar o horário que o próprio agendamento ocupa
  * hoje. Verificação e gravação rodam em {@link ExecucaoSerializada} por profissional, como a reserva e o bloqueio,
- * para que um bloqueio simultâneo no novo horário não passe junto.
+ * para que um bloqueio simultâneo no novo horário não passe junto. Na mesma execução, cliente e profissional são
+ * avisados do novo horário.
  */
 public class ReagendarAgendamentoUseCase extends AlteracaoDeAgendamentoUseCase<ReagendarAgendamentoUseCase.Comando> {
 
 	private final DisponibilidadeDaAgenda disponibilidade;
 	private final ExecucaoSerializada execucao;
+	private final AvisosDoAgendamento avisos;
 
 	public ReagendarAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
 			EstabelecimentoRepository estabelecimentos, BloqueioAgendaRepository bloqueios,
-			ExecucaoSerializada execucao, Clock relogio) {
+			ExecucaoSerializada execucao, AvisosDoAgendamento avisos, Clock relogio) {
 		super(agendamentos, profissionais, estabelecimentos, relogio, PermissaoNoAgendamento.CLIENTE_OU_GESTOR,
 				"reagendar este agendamento");
 		this.disponibilidade = new DisponibilidadeDaAgenda(agendamentos, bloqueios);
 		this.execucao = execucao;
+		this.avisos = avisos;
 	}
 
 	@Override
@@ -49,6 +54,12 @@ public class ReagendarAgendamentoUseCase extends AlteracaoDeAgendamentoUseCase<R
 	@Override
 	<T> T executarNaAgenda(UUID profissionalId, Supplier<T> alteracao) {
 		return execucao.executar(profissionalId, alteracao);
+	}
+
+	/** O aviso leva o novo início, já gravado. */
+	@Override
+	void depoisDeGravar(PartesDoAgendamento partes, Agendamento gravado) {
+		avisos.reagendado(AvisoDoAgendamento.de(gravado, partes.profissional(), partes.estabelecimento()));
 	}
 
 	public record Comando(UUID agendamentoId, UUID usuarioSolicitante, Instant novoInicio)

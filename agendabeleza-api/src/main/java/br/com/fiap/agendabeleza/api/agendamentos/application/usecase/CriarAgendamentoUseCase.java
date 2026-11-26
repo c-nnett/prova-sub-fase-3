@@ -6,6 +6,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AvisoDoAgendamento;
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AvisosDoAgendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.compartilhado.application.port.ExecucaoSerializada;
@@ -27,6 +29,9 @@ import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
  * profissional. Assim, uma reserva e um bloqueio simultâneos não passam juntos pelas verificações. A restrição
  * {@code agendamento_sem_conflito} continua como garantia final entre reservas, e o adaptador a traduz para
  * {@link HorarioIndisponivelException}.
+ * <p>
+ * Os avisos de confirmação para cliente e profissional são pedidos dentro da mesma execução, depois da gravação:
+ * entram na outbox na mesma transação e só saem por e-mail depois do commit. Uma reserva recusada não avisa ninguém.
  */
 public class CriarAgendamentoUseCase {
 
@@ -36,18 +41,20 @@ public class CriarAgendamentoUseCase {
 	private final EstabelecimentoRepository estabelecimentos;
 	private final DisponibilidadeDaAgenda disponibilidade;
 	private final ExecucaoSerializada execucao;
+	private final AvisosDoAgendamento avisos;
 	private final Clock relogio;
 
 	@SuppressWarnings("java:S107") // Uma porta por fonte de dados da agenda, injetadas pelo construtor.
 	public CriarAgendamentoUseCase(AgendamentoRepository agendamentos, ProfissionalRepository profissionais,
 			ServicoRepository servicos, EstabelecimentoRepository estabelecimentos, BloqueioAgendaRepository bloqueios,
-			ExecucaoSerializada execucao, Clock relogio) {
+			ExecucaoSerializada execucao, AvisosDoAgendamento avisos, Clock relogio) {
 		this.agendamentos = agendamentos;
 		this.profissionais = profissionais;
 		this.servicos = servicos;
 		this.estabelecimentos = estabelecimentos;
 		this.disponibilidade = new DisponibilidadeDaAgenda(agendamentos, bloqueios);
 		this.execucao = execucao;
+		this.avisos = avisos;
 		this.relogio = relogio;
 	}
 
@@ -65,7 +72,9 @@ public class CriarAgendamentoUseCase {
 		Agendamento agendamento = Agendamento.reservar(comando.clienteId(), estabelecimento.id(), profissional.id(),
 				servico.id(), comando.inicio(), servico.duracaoMinutos(), preco, comando.observacoes(), agora);
 		disponibilidade.garantirHorarioLivre(agendamento.intervalo(), profissional, estabelecimento, agora);
-		return agendamentos.salvar(agendamento);
+		Agendamento gravado = agendamentos.salvar(agendamento);
+		avisos.reservado(AvisoDoAgendamento.de(gravado, profissional, estabelecimento), comando.emailCliente());
+		return gravado;
 	}
 
 	private Profissional profissionalAtivo(UUID profissionalId) {
@@ -99,8 +108,10 @@ public class CriarAgendamentoUseCase {
 		return estabelecimento;
 	}
 
+	/** @param emailCliente destino dos avisos ao cliente; não há cadastro de usuários de onde tirá-lo */
 	public record Comando(
 			UUID clienteId,
+			String emailCliente,
 			UUID profissionalId,
 			UUID servicoId,
 			Instant inicio,
