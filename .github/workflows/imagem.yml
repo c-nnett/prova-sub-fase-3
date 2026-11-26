@@ -1,0 +1,65 @@
+name: Imagem
+
+# Constrói a imagem "production" da API e publica no GitHub Container Registry. O deploy na VPS
+# (infra/terraform) usa a tag do commit: terraform apply -var versao_da_imagem=<sha curto>.
+
+on:
+  push:
+    branches: [master, "issue-*"]
+    paths:
+      - "agendabeleza-api/**"
+      - ".dockerignore"
+      - ".github/workflows/imagem.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: imagem-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGEM: ghcr.io/${{ github.repository_owner }}/agendabeleza-api
+
+jobs:
+  publicar:
+    name: publicar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Tags da imagem
+        id: tags
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGEM }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=ref,event=branch
+
+      - name: Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login no GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Contexto = raiz do repositório, como no Compose. O cache do GitHub Actions guarda as camadas e o
+      # repositório Maven do estágio de build entre execuções.
+      - name: Build e push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: agendabeleza-api/Dockerfile
+          target: production
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.tags.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
