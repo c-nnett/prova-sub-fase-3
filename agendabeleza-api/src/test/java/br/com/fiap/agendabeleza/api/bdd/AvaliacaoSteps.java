@@ -99,7 +99,7 @@ public class AvaliacaoSteps extends ApiDaAplicacao {
 	@Dado("que fui atendido por ela e o gestor concluiu o atendimento")
 	public void queFuiAtendidoEOGestorConcluiu() {
 		agendamentoId = idCriado(api(clienteId).body("""
-				{ "profissionalId": "%s", "servicoId": "%s", "inicio": "%s" }
+				{ "profissionalId": "%s", "servicoId": "%s", "inicio": "%s", "emailCliente": "cliente@email.com" }
 				""".formatted(profissionalId, servicoId, INICIO_DO_ATENDIMENTO)).post("/agendamentos"));
 		exigirSucesso(api(gestorId).post("/agendamentos/{id}/confirmar", agendamentoId));
 		relogio.definirAgora(DEPOIS_DO_ATENDIMENTO);
