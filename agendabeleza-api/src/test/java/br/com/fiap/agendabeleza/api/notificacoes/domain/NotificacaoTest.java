@@ -71,6 +71,29 @@ class NotificacaoTest {
 	}
 
 	@Test
+	void cancelaNotificacaoPendente() {
+		Notificacao notificacao = pendente();
+
+		notificacao.cancelar();
+
+		assertThat(notificacao.status()).isEqualTo(StatusNotificacao.CANCELADA);
+		assertThatThrownBy(() -> notificacao.marcarEnviada(AGORA))
+				.isInstanceOf(RegraNegocioException.class)
+				.hasMessage(Notificacao.SOMENTE_PENDENTE);
+	}
+
+	@Test
+	void naoCancelaNotificacaoJaEnviada() {
+		Notificacao notificacao = pendente();
+		notificacao.marcarEnviada(AGORA);
+
+		assertThatThrownBy(notificacao::cancelar)
+				.isInstanceOf(RegraNegocioException.class)
+				.hasMessage(Notificacao.SOMENTE_PENDENTE);
+		assertThat(notificacao.status()).isEqualTo(StatusNotificacao.ENVIADA);
+	}
+
+	@Test
 	void falhaContaTentativaEContinuaPendente() {
 		Notificacao notificacao = pendente();
 

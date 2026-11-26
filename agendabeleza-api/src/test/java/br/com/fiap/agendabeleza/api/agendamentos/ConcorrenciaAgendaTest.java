@@ -195,8 +195,9 @@ class ConcorrenciaAgendaTest {
 				.hasSize(4)
 				.allSatisfy(falha -> assertThat(falha.erro()).isInstanceOf(HorarioIndisponivelException.class));
 		assertThat(notificacoesDaProfissional())
-				.as("só a reserva aceita deixa notificações; as recusadas sofrem rollback junto com a outbox")
-				.isEqualTo(2);
+				.as("só a reserva aceita deixa notificações (confirmação e lembrete, para cliente e profissional); "
+						+ "as recusadas sofrem rollback junto com a outbox")
+				.isEqualTo(4);
 	}
 
 	/** Contagem direta no banco: a outbox não expõe esse total pela porta. */

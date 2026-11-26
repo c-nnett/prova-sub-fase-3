@@ -34,6 +34,15 @@ class TipoNotificacaoTest {
 	}
 
 	@Test
+	void lembreteInformaOHorarioQueSeAproxima() {
+		Mensagem mensagem = TipoNotificacao.LEMBRETE.mensagemPara(DESTINATARIO, HORARIO);
+
+		assertThat(mensagem.assunto()).isEqualTo("Lembrete de agendamento");
+		assertThat(mensagem.corpo())
+				.isEqualTo("Lembrete: o agendamento no Salão Bela Vista com Ana é em 05/03/2030 às 10:00.");
+	}
+
+	@Test
 	void reagendamentoInformaONovoHorario() {
 		Mensagem mensagem = TipoNotificacao.REAGENDAMENTO.mensagemPara(DESTINATARIO, HORARIO);
 

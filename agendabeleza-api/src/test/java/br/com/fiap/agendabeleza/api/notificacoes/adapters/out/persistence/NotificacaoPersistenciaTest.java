@@ -135,6 +135,39 @@ class NotificacaoPersistenciaTest {
 	}
 
 	@Test
+	void encontraOsPendentesDoAgendamentoPorTipo() {
+		Notificacao lembrete = lembrete(PapelDestinatario.CLIENTE);
+		Notificacao lembreteEnviado = lembrete(PapelDestinatario.PROFISSIONAL);
+		lembreteEnviado.marcarEnviada(AGORA);
+		Notificacao confirmacao = pendente(PapelDestinatario.CLIENTE, EMAIL_CLIENTE, AGORA);
+		notificacoes.salvarTodas(List.of(lembrete, lembreteEnviado, confirmacao));
+
+		assertThat(notificacoes.pendentesDoAgendamento(agendamentoId, TipoNotificacao.LEMBRETE))
+				.extracting(Notificacao::id)
+				.containsExactly(lembrete.id());
+		assertThat(notificacoes.pendentesDoAgendamento(UUID.randomUUID(), TipoNotificacao.LEMBRETE)).isEmpty();
+	}
+
+	@Test
+	void canceladaFicaGravadaEForaDaRodadaDeEnvio() {
+		Notificacao lembrete = lembrete(PapelDestinatario.CLIENTE);
+		notificacoes.salvarTodas(List.of(lembrete));
+
+		lembrete.cancelar();
+		notificacoes.atualizar(lembrete);
+
+		assertThat(notificacoes.pendentesDoAgendamento(agendamentoId, TipoNotificacao.LEMBRETE)).isEmpty();
+		assertThat(pendentesDoAgendamentoAte(AGORA.plus(Duration.ofDays(2)))).isEmpty();
+	}
+
+	/** Lembrete para 24 horas antes do início do agendamento preparado (05/03, 13h UTC). */
+	private Notificacao lembrete(PapelDestinatario papel) {
+		return Notificacao.pendente(agendamentoId, TipoNotificacao.LEMBRETE, papel,
+				new Mensagem(EMAIL_CLIENTE, "Lembrete de agendamento", "Lembrete."),
+				Instant.parse("2030-03-04T13:00:00Z"));
+	}
+
+	@Test
 	void encontraOEmailDoClientePeloAgendamento() {
 		notificacoes.salvarTodas(List.of(
 				pendente(PapelDestinatario.PROFISSIONAL, "ana@salao.com", AGORA),

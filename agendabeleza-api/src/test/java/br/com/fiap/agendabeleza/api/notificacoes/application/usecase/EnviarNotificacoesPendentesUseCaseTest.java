@@ -5,11 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+
+import br.com.fiap.agendabeleza.api.agendamentos.application.port.AvisoDoAgendamento;
 
 import br.com.fiap.agendabeleza.api.notificacoes.application.NotificacaoGatewayEmMemoria;
 import br.com.fiap.agendabeleza.api.notificacoes.application.NotificacaoRepositoryEmMemoria;
@@ -51,6 +54,52 @@ class EnviarNotificacoesPendentesUseCaseTest {
 		assertThat(vencida.enviadaEm()).isEqualTo(AGORA);
 		assertThat(noHorario.status()).isEqualTo(StatusNotificacao.ENVIADA);
 		assertThat(futura.status()).isEqualTo(StatusNotificacao.PENDENTE);
+	}
+
+	@Test
+	void notificacaoCanceladaNaoEEnviada() {
+		Notificacao cancelada = gravarPendente("cliente@email.com", AGORA);
+		cancelada.cancelar();
+		notificacoes.atualizar(cancelada);
+
+		assertThat(enviar.executar()).isZero();
+		assertThat(servidorDeEmail.enviadas()).isEmpty();
+	}
+
+	/** "Pronto quando" de 25/11: o agendamento cancelado não recebe lembrete, e o que não foi cancelado recebe. */
+	@Test
+	void lembreteSaiNaHoraSoParaQuemNaoCancelou() {
+		Instant reservaFeitaEm = AGORA.minus(Duration.ofDays(3));
+		AvisosPorEmail avisosNaReserva = new AvisosPorEmail(notificacoes, Clock.fixed(reservaFeitaEm, ZoneOffset.UTC));
+		Instant inicio = AGORA.plus(Duration.ofHours(23));
+		AvisoDoAgendamento mantido = aviso(inicio, "mantido@email.com");
+		AvisoDoAgendamento cancelado = aviso(inicio, "cancelado@email.com");
+		avisosNaReserva.reservado(mantido, "cliente.mantido@email.com");
+		avisosNaReserva.reservado(cancelado, "cliente.cancelado@email.com");
+		avisosNaReserva.cancelado(cancelado);
+
+		enviar.executar();
+
+		assertThat(servidorDeEmail.enviadas())
+				.filteredOn(mensagem -> mensagem.assunto().equals("Lembrete de agendamento"))
+				.extracting(Mensagem::destinatario)
+				.containsExactlyInAnyOrder("cliente.mantido@email.com", "mantido@email.com");
+	}
+
+	@Test
+	void lembreteEnviadoNaoSaiDeNovo() {
+		gravarPendente("cliente@email.com", AGORA);
+
+		enviar.executar();
+		int enviadasNaSegundaRodada = enviar.executar();
+
+		assertThat(enviadasNaSegundaRodada).isZero();
+		assertThat(servidorDeEmail.enviadas()).hasSize(1);
+	}
+
+	private static AvisoDoAgendamento aviso(Instant inicio, String emailProfissional) {
+		return new AvisoDoAgendamento(UUID.randomUUID(), inicio, ZoneId.of("America/Sao_Paulo"), "Salão Bela Vista",
+				"Ana", emailProfissional);
 	}
 
 	@Test

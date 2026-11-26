@@ -13,6 +13,7 @@ import br.com.fiap.agendabeleza.api.notificacoes.domain.Mensagem;
 import br.com.fiap.agendabeleza.api.notificacoes.domain.Notificacao;
 import br.com.fiap.agendabeleza.api.notificacoes.domain.PapelDestinatario;
 import br.com.fiap.agendabeleza.api.notificacoes.domain.StatusNotificacao;
+import br.com.fiap.agendabeleza.api.notificacoes.domain.TipoNotificacao;
 
 /** Imita o adaptador JPA: pendentes vencidas em ordem de envio, e o e-mail do cliente pela primeira notificação. */
 public class NotificacaoRepositoryEmMemoria implements NotificacaoRepository {
@@ -38,6 +39,15 @@ public class NotificacaoRepositoryEmMemoria implements NotificacaoRepository {
 				.filter(notificacao -> !notificacao.enviarEm().isAfter(momento))
 				.sorted(ORDEM_DE_ENVIO)
 				.limit(limite)
+				.toList();
+	}
+
+	@Override
+	public List<Notificacao> pendentesDoAgendamento(UUID agendamentoId, TipoNotificacao tipo) {
+		return dados.values().stream()
+				.filter(notificacao -> notificacao.agendamentoId().equals(agendamentoId))
+				.filter(notificacao -> notificacao.tipo() == tipo)
+				.filter(notificacao -> notificacao.status() == StatusNotificacao.PENDENTE)
 				.toList();
 	}
 
