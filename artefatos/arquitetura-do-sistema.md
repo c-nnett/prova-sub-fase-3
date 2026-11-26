@@ -328,6 +328,7 @@ sequenceDiagram
 - Cancelar ou reagendar marca os lembretes pendentes como `CANCELADA`. O reagendamento grava os lembretes do novo horário. Só `PENDENTE` é enviada; `ENVIADA`, `FALHA` e `CANCELADA` são finais.
 - Corrida aceita: se o cancelamento acontecer no mesmo instante em que o job envia aquele lembrete, o e-mail já terá saído e o job grava `ENVIADA` por cima de `CANCELADA`. A correção, se necessária, é um update condicional (`WHERE status = 'PENDENTE'`) no adaptador.
 - O job entrega cada e-mail pela porta `NotificacaoGateway`. Uma `FalhaNoEnvioException` conta como tentativa.
+- O fluxo inteiro é coberto por `NotificacoesPorEmailTest`: casos de uso reais, outbox no PostgreSQL do Testcontainers, `NotificacaoSmtpAdapter` e SMTP do GreenMail. As rodadas do job são chamadas com relógio fixo para fazer o lembrete vencer.
 - O envio é "pelo menos uma vez": se a task cair depois de enviar e antes de atualizar o status, o e-mail pode se repetir. Esse risco é aceitável para este domínio.
 
 ### 6.3 Sincronização com Google Calendar

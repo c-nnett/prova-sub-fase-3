@@ -253,12 +253,12 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 **Próximo passo**
 - Abrir o PR da `issue-2411` (funcionalidade 6 completa). No merge com a `issue-2511`, ordenar os registros diários 23/11 → 24/11 → 25/11.
 
-### 25/11 (quarta): confirmações e lembretes (registro parcial, branch `issue-2511`)
+### 25/11 (quarta): confirmações e lembretes (branch `issue-2511`). Marco M2
 
-**Resultado:** Parcial, 3 de 4 metas até aqui
+**Resultado:** Concluído. **Funcionalidade 3 pronta.**
 **Horas:** a preencher, de 2 h planejadas
-**Tarefas:** 3 de 4 planejadas
-**Pronto quando:** atendido nos testes. Uma reserva grava as confirmações e os lembretes (cliente e profissional), o job os envia pelo gateway, e um agendamento cancelado não recebe lembrete, enquanto o mantido recebe na hora. A conferência manual no Mailpit fica para a meta do GreenMail
+**Tarefas:** 4 de 4 planejadas
+**Pronto quando:** atendido. No Mailpit do Docker Compose, uma reserva seguida de cancelamento gerou os 4 e-mails esperados (confirmação e cancelamento, para cliente e profissional), com remetente e acentos corretos. No `NotificacoesPorEmailTest`, com PostgreSQL e SMTP reais, o agendamento cancelado não recebe lembrete, o mantido recebe, e uma nova rodada não reenvia nada
 
 **Realizado**
 - `NotificacaoGateway` (porta) com a `Mensagem` validada no domínio e o `NotificacaoSmtpAdapter` (`JavaMailSender`), apontado para o Mailpit do Docker Compose.
@@ -268,17 +268,19 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - `EnviarNotificacoesPendentesUseCase` e o job `@Scheduled` (a cada minuto, desligado nos testes).
 - `emailCliente` obrigatório no `POST /agendamentos` (400 se ausente ou inválido).
 - Lembretes: `LEMBRETE` em início − 24 h na reserva e no reagendamento (nenhum se faltar menos de 24 h), e `CANCELADA` para os pendentes ao cancelar ou reagendar. Sem migração nova e sem mudança no módulo de agendamentos: o `CHECK` da outbox já previa os dois valores.
+- `NotificacoesPorEmailTest`: fluxo de ponta a ponta com os beans reais (casos de uso, outbox no PostgreSQL do Testcontainers, `NotificacaoSmtpAdapter`) e o SMTP do GreenMail. As rodadas do job usam relógio fixo para fazer o lembrete vencer.
+- Conferência manual no Mailpit, com um `.env` em portas livres (as padrão estavam ocupadas por outros projetos da máquina).
 
 **Pendente**
-- Teste do fluxo com GreenMail e conferência no Mailpit (4ª meta).
+- Nenhum item da meta. Abrir o PR da `issue-2511`.
 
 **Fora do plano**
 - Validação de e-mail extraída do `Profissional` para `Validacoes.email`, reaproveitada pela `Mensagem` (sem duplicar a expressão regular).
-- Merge da `master` (gestão e painel da `issue-2411`) na `issue-2511` antes da 2ª meta, que liga os e-mails ao cancelamento e ao reagendamento.
+- A `issue-2511` foi refeita sobre a `master` (gestão e painel da `issue-2411`, avaliações da `issue-2611`) antes do PR, com rebase. A 2ª meta liga os e-mails ao cancelamento e ao reagendamento da gestão.
 - O job genérico de envio, previsto para a 3ª meta, entrou na 2ª. Por isso a 3ª ficou só com as regras dos lembretes.
 
 **Métricas do dia**
-- Testes: 532, todos verdes no `./mvnw verify`, com as regras de cobertura do JaCoCo atendidas.
+- Testes: 533, todos verdes no `./mvnw verify`, com as regras de cobertura do JaCoCo atendidas.
 - Cobertura das classes novas de `notificacoes` e das portas novas de `agendamentos`: 100% das linhas e dos ramos (meta de 80%).
 
 **Desafios e soluções**
@@ -297,8 +299,10 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - Reserva feita com menos de 24 h de antecedência não ganha lembrete: a confirmação acabou de sair.
 - Corrida aceita entre o cancelamento e o envio do mesmo lembrete, no instante exato em que ele vence: o e-mail já saiu e o job grava `ENVIADA` por cima de `CANCELADA`. Sem coluna de versão; a correção seria um update condicional no adaptador.
 
+- O Docker Compose de todas as worktrees usa o mesmo nome de projeto (`agendabeleza`) e, portanto, o mesmo volume do PostgreSQL. Subir o compose numa branch aplica as migrações dela nesse banco local compartilhado.
+
 **Próximo passo**
-- Teste do fluxo com GreenMail (reserva → job → e-mail recebido) e conferência no Mailpit com um `.env` em portas livres.
+- Abrir o PR da `issue-2511` (funcionalidade 3 completa) e, na sexta 27/11, a busca e os filtros.
 
 ### 26/11 (quinta): avaliações (feita em 25/11, adiantada; branch `issue-2611`)
 
