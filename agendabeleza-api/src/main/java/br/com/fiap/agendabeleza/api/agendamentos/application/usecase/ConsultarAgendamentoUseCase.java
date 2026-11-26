@@ -1,12 +1,9 @@
 package br.com.fiap.agendabeleza.api.agendamentos.application.usecase;
 
-import java.util.Objects;
 import java.util.UUID;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
-import br.com.fiap.agendabeleza.api.compartilhado.domain.AcessoNegadoException;
-import br.com.fiap.agendabeleza.api.compartilhado.domain.RecursoNaoEncontradoException;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.EstabelecimentoRepository;
 import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalRepository;
 
@@ -27,24 +24,10 @@ public class ConsultarAgendamentoUseCase {
 	}
 
 	public Agendamento executar(UUID agendamentoId, UUID usuarioId) {
-		Agendamento agendamento = agendamentos.buscarPorId(agendamentoId)
-				.orElseThrow(() -> new RecursoNaoEncontradoException(
-						"Agendamento " + agendamentoId + " não encontrado"));
-		if (!envolvido(agendamento, usuarioId)) {
-			throw new AcessoNegadoException("Somente o cliente, o gestor do estabelecimento ou o profissional "
-					+ "podem consultar este agendamento");
-		}
-		return agendamento;
-	}
-
-	private boolean envolvido(Agendamento agendamento, UUID usuarioId) {
-		return agendamento.pertenceAoCliente(usuarioId)
-				|| estabelecimentos.buscarPorId(agendamento.estabelecimentoId())
-						.map(estabelecimento -> estabelecimento.gestorId().equals(usuarioId))
-						.orElse(false)
-				|| profissionais.buscarPorId(agendamento.profissionalId())
-						.map(profissional -> Objects.equals(profissional.usuarioId(), usuarioId))
-						.orElse(false);
+		PartesDoAgendamento partes = PartesDoAgendamento.carregar(agendamentos, profissionais, estabelecimentos,
+				agendamentoId);
+		PermissaoNoAgendamento.PARTES_ENVOLVIDAS.exigir(partes, usuarioId, "consultar este agendamento");
+		return partes.agendamento();
 	}
 
 }

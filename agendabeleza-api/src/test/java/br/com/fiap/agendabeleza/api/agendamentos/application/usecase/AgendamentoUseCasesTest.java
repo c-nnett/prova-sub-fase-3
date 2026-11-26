@@ -205,23 +205,23 @@ class AgendamentoUseCasesTest {
 
 	@Test
 	void recusaHorarioDeAlmoco() {
-		assertRecusa(Instant.parse("2030-03-04T15:30:00Z"), CriarAgendamentoUseCase.FORA_DO_ATENDIMENTO);
+		assertRecusa(Instant.parse("2030-03-04T15:30:00Z"), DisponibilidadeDaAgenda.FORA_DO_ATENDIMENTO);
 	}
 
 	@Test
 	void recusaServicoQueTerminaDepoisDaJornada() {
-		assertRecusa(Instant.parse("2030-03-04T20:30:00Z"), CriarAgendamentoUseCase.FORA_DO_ATENDIMENTO);
+		assertRecusa(Instant.parse("2030-03-04T20:30:00Z"), DisponibilidadeDaAgenda.FORA_DO_ATENDIMENTO);
 	}
 
 	@Test
 	void recusaDiaComOEstabelecimentoFechado() {
-		assertRecusa(Instant.parse("2030-03-03T13:00:00Z"), CriarAgendamentoUseCase.FORA_DO_ATENDIMENTO);
+		assertRecusa(Instant.parse("2030-03-03T13:00:00Z"), DisponibilidadeDaAgenda.FORA_DO_ATENDIMENTO);
 	}
 
 	@Test
 	void usaOFusoDoEstabelecimento() {
 		// 9h em UTC são 6h em Brasília, antes da jornada. 12h em UTC são 9h em Brasília, o início da jornada.
-		assertRecusa(Instant.parse("2030-03-04T09:00:00Z"), CriarAgendamentoUseCase.FORA_DO_ATENDIMENTO);
+		assertRecusa(Instant.parse("2030-03-04T09:00:00Z"), DisponibilidadeDaAgenda.FORA_DO_ATENDIMENTO);
 
 		assertThat(reservar(Instant.parse("2030-03-04T12:00:00Z")).inicio())
 				.isEqualTo(Instant.parse("2030-03-04T12:00:00Z"));
@@ -264,7 +264,7 @@ class AgendamentoUseCasesTest {
 		bloqueios.salvar(BloqueioAgenda.reconstituir(UUID.randomUUID(), ana.id(), DEZ_HORAS.minusSeconds(1800),
 				DEZ_HORAS.plusSeconds(1800), "Consulta médica"));
 
-		assertRecusa(DEZ_HORAS, CriarAgendamentoUseCase.PROFISSIONAL_INDISPONIVEL);
+		assertRecusa(DEZ_HORAS, DisponibilidadeDaAgenda.PROFISSIONAL_INDISPONIVEL);
 	}
 
 	@Test

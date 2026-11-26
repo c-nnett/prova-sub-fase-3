@@ -27,6 +27,9 @@ import org.springframework.context.annotation.Import;
 
 import br.com.fiap.agendabeleza.api.TestcontainersConfiguration;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CriarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.DisponibilidadeDaAgenda;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ReagendarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.domain.Agendamento;
 import br.com.fiap.agendabeleza.api.agendamentos.domain.HorarioIndisponivelException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.ConflitoException;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
@@ -53,9 +56,14 @@ class ConcorrenciaAgendaTest {
 	/** Segunda-feira, 4 de março de 2030, à meia-noite em Brasília. */
 	private static final Instant SEGUNDA = Instant.parse("2030-03-04T03:00:00Z");
 	private static final int RODADAS = 8;
+	/** Cada rodada usa duas horas da jornada (9h às 18h): o horário atual e o novo. */
+	private static final int RODADAS_DE_REAGENDAMENTO = 4;
 
 	@Autowired
 	private CriarAgendamentoUseCase criarAgendamento;
+
+	@Autowired
+	private ReagendarAgendamentoUseCase reagendarAgendamento;
 
 	@Autowired
 	private CriarBloqueioUseCase criarBloqueio;
@@ -115,16 +123,49 @@ class ConcorrenciaAgendaTest {
 								ana.id(), corte.id(), inicio, null));
 					}));
 
-			assertThat(resultados).as("rodada das %s", inicio)
-					.filteredOn(Resultado::sucesso).hasSize(1);
-			assertThat(resultados).filteredOn(resultado -> !resultado.sucesso())
-					.singleElement()
-					.satisfies(falha -> assertThat(falha.erro()).satisfiesAnyOf(
-							erro -> assertThat(erro).isInstanceOf(ConflitoException.class)
-									.hasMessage("Há agendamento ativo no período do bloqueio"),
-							erro -> assertThat(erro).isInstanceOf(RegraNegocioException.class)
-									.hasMessage(CriarAgendamentoUseCase.PROFISSIONAL_INDISPONIVEL)));
+			assertSomenteOBloqueioOuAAgendaPassa(resultados, inicio);
 		}
+	}
+
+	@Test
+	void reagendamentoEBloqueioSimultaneosNoMesmoHorarioNaoPassamJuntos() throws Exception {
+		for (int rodada = 0; rodada < RODADAS_DE_REAGENDAMENTO; rodada++) {
+			Instant inicioAtual = SEGUNDA.plus(Duration.ofHours(10L + 2L * rodada));
+			Instant novoInicio = inicioAtual.plus(Duration.ofHours(1));
+			Agendamento agendamento = criarAgendamento.executar(new CriarAgendamentoUseCase.Comando(
+					UUID.randomUUID(), ana.id(), corte.id(), inicioAtual, null));
+			CyclicBarrier largada = new CyclicBarrier(2);
+
+			List<Resultado> resultados = executarJuntos(List.of(
+					() -> {
+						largada.await();
+						return criarBloqueio.executar(new CriarBloqueioUseCase.Comando(ana.id(), gestorId,
+								novoInicio, novoInicio.plus(Duration.ofHours(1)), "Concorrência"));
+					},
+					() -> {
+						largada.await();
+						return reagendarAgendamento.executar(new ReagendarAgendamentoUseCase.Comando(
+								agendamento.id(), gestorId, novoInicio));
+					}));
+
+			assertSomenteOBloqueioOuAAgendaPassa(resultados, novoInicio);
+		}
+	}
+
+	/**
+	 * Exatamente uma das duas operações passa. A outra é recusada pela verificação, e nunca as duas juntas: o
+	 * bloqueio com 409 por encontrar o agendamento, ou a reserva/reagendamento com 422 por encontrar o bloqueio.
+	 */
+	private static void assertSomenteOBloqueioOuAAgendaPassa(List<Resultado> resultados, Instant horarioDisputado) {
+		assertThat(resultados).as("rodada das %s", horarioDisputado)
+				.filteredOn(Resultado::sucesso).hasSize(1);
+		assertThat(resultados).filteredOn(resultado -> !resultado.sucesso())
+				.singleElement()
+				.satisfies(falha -> assertThat(falha.erro()).satisfiesAnyOf(
+						erro -> assertThat(erro).isInstanceOf(ConflitoException.class)
+								.hasMessage("Há agendamento ativo no período do bloqueio"),
+						erro -> assertThat(erro).isInstanceOf(RegraNegocioException.class)
+								.hasMessage(DisponibilidadeDaAgenda.PROFISSIONAL_INDISPONIVEL)));
 	}
 
 	@Test

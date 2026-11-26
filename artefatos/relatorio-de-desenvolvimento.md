@@ -176,3 +176,43 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - Casos de uso e endpoints de confirmar, cancelar, reagendar, concluir e registrar não comparecimento (24/11), já usando o objeto devolvido por `salvar` e o 409 de versão desatualizada.
+
+### 24/11 (terça): gestão de agendamentos (1ª meta do dia)
+
+**Resultado:** Parcial (1 de 2 metas do dia; o painel segue pendente)
+**Horas:** a preencher, de 2 h planejadas para o dia
+**Tarefas:** 1 de 2 planejadas
+**Pronto quando:** atendido para a gestão. Toda transição fora do diagrama é recusada com 422, e cada ação grava uma linha em `agendamento_historico`. O painel ainda não existe
+
+**Realizado**
+- Casos de uso e rotas de confirmar, cancelar (com motivo opcional), reagendar, concluir e registrar não comparecimento, em `POST /api/v1/agendamentos/{id}/<ação>`, no novo `GestaoAgendamentoController`.
+- Cada ação em TDD e em commits próprios (`test:` seguido de `feat:`), na branch `issue-2411`.
+- Permissões: gestor ou profissional confirmam, concluem e registram a falta; cliente ou gestor cancelam e reagendam (403 para os demais).
+- Reagendamento serializado por profissional, revalidando o novo horário com as mesmas regras da reserva.
+- Teste de concorrência entre reagendamento e bloqueio no `ConcorrenciaAgendaTest`.
+
+**Pendente**
+- Painel do estabelecimento: agenda filtrada e resumo por status (2ª meta de 24/11).
+
+**Fora do plano**
+- Extração da verificação de horário livre de `CriarAgendamentoUseCase` para `DisponibilidadeDaAgenda`, usada pela reserva e pelo reagendamento.
+- A consulta de agendamento passou a usar as mesmas partes e regras de permissão das ações de gestão.
+
+**Métricas do dia**
+- Testes: 441 no `./mvnw verify`, todos passando, com as regras de cobertura do JaCoCo atendidas.
+- Cobertura de linhas de `agendamentos`: 99,0% nos casos de uso e 99,4% no domínio (meta de 80%).
+
+**Desafios e soluções**
+- **Cinco ações com o mesmo fluxo.**
+  - *Como apareceu:* confirmar, cancelar, reagendar, concluir e registrar a falta repetem os mesmos passos: carregar o agendamento (404), checar quem pede (403), aplicar a ação do domínio (422) e gravar com histórico (409 de versão). Cinco classes copiadas multiplicariam a duplicação.
+  - *Solução:* **Template Method** em `AlteracaoDeAgendamentoUseCase`, cujo `executar` é final e fixa o fluxo, com a ação em um passo abstrato e um gancho para rodar serializado. As regras de quem pode agir ficam no enum `PermissaoNoAgendamento` (**Strategy**), reaproveitado pela consulta. `PartesDoAgendamento.carregar` (fábrica estática) carrega o agendamento, o estabelecimento e o profissional uma única vez. Cada caso de uso concreto ficou com poucas linhas.
+- **Reagendar para um horário que se sobrepõe ao atual.**
+  - *Como apareceu:* ao revalidar o novo horário, o próprio agendamento aparecia entre as ocupações do profissional. Mover um atendimento das 10h para as 10h30 seria recusado com 409 por conflitar consigo mesmo.
+  - *Solução:* a verificação ignora o intervalo que o agendamento ocupa hoje. Basta comparar o intervalo, porque o `EXCLUDE` garante que nenhum outro agendamento ativo do profissional o sobrepõe. Assim a porta do repositório não mudou.
+
+**Riscos e decisões**
+- As ações de gestão ficaram em um controller próprio, com o mesmo prefixo de rota. Assim o `AgendamentoController` não passa de sete dependências (regra S107 do Sonar), e cada controller tem uma única responsabilidade.
+- Confirmar, cancelar, concluir e registrar a falta não usam a trava por profissional, porque não verificam horário; o bloqueio otimista cobre alterações simultâneas do mesmo agendamento.
+
+**Próximo passo**
+- Painel do estabelecimento: `GET /estabelecimentos/{id}/agendamentos` com filtros e `GET /estabelecimentos/{id}/painel/resumo`.

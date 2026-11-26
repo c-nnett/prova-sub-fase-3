@@ -126,6 +126,7 @@ src/main/java/br/com/fiap/agendabeleza/api/
 │   ├── application/
 │   │   ├── usecase/
 │   │   │   ├── CriarAgendamentoUseCase.java
+│   │   │   ├── AlteracaoDeAgendamentoUseCase.java   (base das ações de gestão)
 │   │   │   ├── ReagendarAgendamentoUseCase.java
 │   │   │   └── ConsultarHorariosLivresUseCase.java
 │   │   └── port/
@@ -207,11 +208,16 @@ Os bloqueios recebem `inicio` e `fim` com fuso (`2026-11-30T10:00:00-03:00`) e s
 | POST | `/agendamentos` | Cliente | Cria agendamento com a tarifa do profissional. Retorna 404 para profissional ou serviço inexistente, 422 para horário no passado, fora do atendimento ou em bloqueio do profissional e 409 para horário ocupado |
 | GET | `/agendamentos/meus` | Cliente | Lista histórico próprio, do mais recente para o mais antigo |
 | GET | `/agendamentos/{id}` | Partes envolvidas | Consulta detalhes. Cliente, gestor ou profissional; os demais recebem 403 |
-| POST | `/agendamentos/{id}/confirmar` | Gestor ou profissional | Confirma |
-| POST | `/agendamentos/{id}/reagendar` | Cliente ou gestor | Altera o horário |
-| POST | `/agendamentos/{id}/cancelar` | Cliente ou gestor | Cancela |
-| POST | `/agendamentos/{id}/concluir` | Gestor ou profissional | Conclui |
-| POST | `/agendamentos/{id}/nao-comparecimento` | Gestor ou profissional | Registra falta |
+| POST | `/agendamentos/{id}/confirmar` | Gestor ou profissional | Confirma um agendamento `AGENDADO`. Retorna 422 para os demais status |
+| POST | `/agendamentos/{id}/reagendar` | Cliente ou gestor | Recebe `{ "novoInicio" }` e mantém a duração; o status volta para `AGENDADO`. O novo horário passa pelas regras da reserva, sem contar o horário atual do próprio agendamento: 422 para agendamento inativo, início no passado ou igual ao atual, bloqueio ou fora do atendimento, e 409 para outro agendamento no horário |
+| POST | `/agendamentos/{id}/cancelar` | Cliente ou gestor | Cancela um agendamento ativo e libera o horário. Corpo opcional `{ "motivo" }`, de até 250 caracteres, gravado no histórico |
+| POST | `/agendamentos/{id}/concluir` | Gestor ou profissional | Conclui um agendamento `CONFIRMADO`, a partir do início. Retorna 422 antes do início ou para os demais status |
+| POST | `/agendamentos/{id}/nao-comparecimento` | Gestor ou profissional | Registra a falta em um agendamento `CONFIRMADO`, a partir do início. Retorna 422 antes do início ou para os demais status |
+
+As cinco ações de gestão respondem 200 com o agendamento como ficou gravado, 404 se ele não existir, 403 para quem não tem a permissão indicada, 422 para uma transição fora do diagrama de status (modelagem, seção 4.2) e 409 se outra operação tiver gravado o agendamento antes (bloqueio otimista). Cada uma grava uma linha em `agendamento_historico`.
+
+| Método | Rota | Acesso | Descrição |
+|---|---|---|---|
 | GET | `/estabelecimentos/{id}/agendamentos?de&ate&status&profissionalId` | Gestor dono | Painel: agenda filtrada |
 | GET | `/estabelecimentos/{id}/painel/resumo?de&ate` | Gestor dono | Painel: totais por status |
 

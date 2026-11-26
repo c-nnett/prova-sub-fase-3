@@ -7,10 +7,15 @@ import org.springframework.context.annotation.Configuration;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.AgendamentosAtivosDoProfissional;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CancelarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConcluirAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConfirmarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ConsultarHorariosLivresUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.CriarAgendamentoUseCase;
 import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ListarMeusAgendamentosUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.ReagendarAgendamentoUseCase;
+import br.com.fiap.agendabeleza.api.agendamentos.application.usecase.RegistrarNaoComparecimentoUseCase;
 import br.com.fiap.agendabeleza.api.compartilhado.application.port.ExecucaoSerializada;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.EstabelecimentoRepository;
 import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.ServicoRepository;
@@ -52,6 +57,38 @@ class AgendamentosConfig {
 	@Bean
 	ListarMeusAgendamentosUseCase listarMeusAgendamentosUseCase(AgendamentoRepository agendamentos) {
 		return new ListarMeusAgendamentosUseCase(agendamentos);
+	}
+
+	@Bean
+	ConfirmarAgendamentoUseCase confirmarAgendamentoUseCase(AgendamentoRepository agendamentos,
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
+		return new ConfirmarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
+	}
+
+	@Bean
+	CancelarAgendamentoUseCase cancelarAgendamentoUseCase(AgendamentoRepository agendamentos,
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
+		return new CancelarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
+	}
+
+	@Bean
+	ConcluirAgendamentoUseCase concluirAgendamentoUseCase(AgendamentoRepository agendamentos,
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
+		return new ConcluirAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
+	}
+
+	@Bean
+	RegistrarNaoComparecimentoUseCase registrarNaoComparecimentoUseCase(AgendamentoRepository agendamentos,
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos, Clock relogio) {
+		return new RegistrarNaoComparecimentoUseCase(agendamentos, profissionais, estabelecimentos, relogio);
+	}
+
+	@Bean
+	ReagendarAgendamentoUseCase reagendarAgendamentoUseCase(AgendamentoRepository agendamentos,
+			ProfissionalRepository profissionais, EstabelecimentoRepository estabelecimentos,
+			BloqueioAgendaRepository bloqueios, ExecucaoSerializada execucao, Clock relogio) {
+		return new ReagendarAgendamentoUseCase(agendamentos, profissionais, estabelecimentos, bloqueios, execucao,
+				relogio);
 	}
 
 	@Bean
