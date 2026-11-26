@@ -146,7 +146,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 - [x] Criar `NotificacaoGateway` com adaptador SMTP (Mailpit local). Feito em 25/11: porta em `notificacoes/application/port`, `NotificacaoSmtpAdapter` com `JavaMailSender` e teste do adaptador com GreenMail.
 - [x] Enviar confirmação para cliente e profissional depois do commit da reserva, do cancelamento e do reagendamento. Feito em 25/11: outbox `notificacao` na mesma transação, porta `AvisosDoAgendamento` e job de envio a cada minuto. O job genérico entrou nesta meta; a próxima fica só com os lembretes.
-- [ ] Criar job `@Scheduled` de lembretes para 24h antes, com marcação de envio para não repetir.
+- [x] Criar job `@Scheduled` de lembretes para 24h antes, com marcação de envio para não repetir. Feito em 25/11: `LEMBRETE` gravado em início − 24h na reserva e no reagendamento, enviado pelo mesmo job; `ENVIADA` e `CANCELADA` são finais. Reserva com menos de 24h de antecedência não ganha lembrete.
 - [ ] Testar com GreenMail.
 
 **Pronto quando:** uma reserva gera e-mails visíveis no Mailpit, e um agendamento cancelado não recebe lembrete. **Funcionalidade 3 pronta.**

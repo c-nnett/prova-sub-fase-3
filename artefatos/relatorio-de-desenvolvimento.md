@@ -255,10 +255,10 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 ### 25/11 (quarta): confirmações e lembretes (registro parcial, branch `issue-2511`)
 
-**Resultado:** Parcial, 2 de 4 metas até aqui
+**Resultado:** Parcial, 3 de 4 metas até aqui
 **Horas:** a preencher, de 2 h planejadas
-**Tarefas:** 2 de 4 planejadas
-**Pronto quando:** atendido nos testes para a confirmação. Uma reserva grava duas notificações (cliente e profissional), e o job as envia pelo gateway. A conferência manual no Mailpit fica para a meta do GreenMail. A parte do lembrete de agendamento cancelado depende da 3ª meta
+**Tarefas:** 3 de 4 planejadas
+**Pronto quando:** atendido nos testes. Uma reserva grava as confirmações e os lembretes (cliente e profissional), o job os envia pelo gateway, e um agendamento cancelado não recebe lembrete, enquanto o mantido recebe na hora. A conferência manual no Mailpit fica para a meta do GreenMail
 
 **Realizado**
 - `NotificacaoGateway` (porta) com a `Mensagem` validada no domínio e o `NotificacaoSmtpAdapter` (`JavaMailSender`), apontado para o Mailpit do Docker Compose.
@@ -267,19 +267,19 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - Porta `AvisosDoAgendamento`, declarada em `agendamentos` e implementada por `AvisosPorEmail` em `notificacoes`. A reserva, o cancelamento e o reagendamento avisam cliente e profissional dentro da mesma transação da gravação.
 - `EnviarNotificacoesPendentesUseCase` e o job `@Scheduled` (a cada minuto, desligado nos testes).
 - `emailCliente` obrigatório no `POST /agendamentos` (400 se ausente ou inválido).
+- Lembretes: `LEMBRETE` em início − 24 h na reserva e no reagendamento (nenhum se faltar menos de 24 h), e `CANCELADA` para os pendentes ao cancelar ou reagendar. Sem migração nova e sem mudança no módulo de agendamentos: o `CHECK` da outbox já previa os dois valores.
 
 **Pendente**
-- Lembrete 24 h antes, com cancelamento dos lembretes pendentes ao cancelar ou reagendar (3ª meta).
 - Teste do fluxo com GreenMail e conferência no Mailpit (4ª meta).
 
 **Fora do plano**
 - Validação de e-mail extraída do `Profissional` para `Validacoes.email`, reaproveitada pela `Mensagem` (sem duplicar a expressão regular).
 - Merge da `master` (gestão e painel da `issue-2411`) na `issue-2511` antes da 2ª meta, que liga os e-mails ao cancelamento e ao reagendamento.
-- O job genérico de envio, previsto para a 3ª meta, entrou na 2ª.
+- O job genérico de envio, previsto para a 3ª meta, entrou na 2ª. Por isso a 3ª ficou só com as regras dos lembretes.
 
 **Métricas do dia**
-- Testes: 519, todos verdes no `./mvnw verify`, com as regras de cobertura do JaCoCo atendidas.
-- Cobertura das classes novas de `notificacoes` e das portas novas de `agendamentos`: 100% das linhas (meta de 80%).
+- Testes: 532, todos verdes no `./mvnw verify`, com as regras de cobertura do JaCoCo atendidas.
+- Cobertura das classes novas de `notificacoes` e das portas novas de `agendamentos`: 100% das linhas e dos ramos (meta de 80%).
 
 **Desafios e soluções**
 - **E-mail que não pode desfazer nem sair antes da reserva.**
@@ -294,9 +294,11 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - A dependência entre módulos segue o padrão de `AgendamentosAtivos`: quem consome declara a porta (`agendamentos`), e quem sabe fazer implementa (`notificacoes`).
 - O GreenMail traz o JUnit 4; ele foi excluído no `pom.xml`, porque os testes usam só a extensão do JUnit 5.
 - O Actuator passa a checar o SMTP no `/actuator/health`. Sem servidor de e-mail, a saúde fica `DOWN`. Avaliar antes do deploy de 28/11.
+- Reserva feita com menos de 24 h de antecedência não ganha lembrete: a confirmação acabou de sair.
+- Corrida aceita entre o cancelamento e o envio do mesmo lembrete, no instante exato em que ele vence: o e-mail já saiu e o job grava `ENVIADA` por cima de `CANCELADA`. Sem coluna de versão; a correção seria um update condicional no adaptador.
 
 **Próximo passo**
-- Lembretes: gravar `LEMBRETE` para início − 24 h na reserva e no reagendamento, e marcar como `CANCELADA` os pendentes do agendamento cancelado ou reagendado.
+- Teste do fluxo com GreenMail (reserva → job → e-mail recebido) e conferência no Mailpit com um `.env` em portas livres.
 
 ### 26/11 (quinta): avaliações (feita em 25/11, adiantada; branch `issue-2611`)
 

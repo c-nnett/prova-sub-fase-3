@@ -324,7 +324,9 @@ sequenceDiagram
 - O cancelamento passou a rodar em `ExecucaoSerializada` para ter uma transação; a trava por profissional só o faz esperar uma reserva ou bloqueio do mesmo profissional em andamento.
 - Sem `SKIP LOCKED`: roda uma instância só, e o `fixedDelay` impede duas rodadas juntas. Com mais de uma instância, a consulta precisaria de `FOR UPDATE SKIP LOCKED`.
 - O e-mail do cliente chega só na reserva (`emailCliente`) e fica em `notificacao.destinatario_email`, de papel `CLIENTE`. Os avisos seguintes o leem de lá.
-- Cada reserva vai gerar quatro registros quando os lembretes entrarem: confirmação e lembrete, para o cliente e para o profissional.
+- Cada reserva gera quatro registros: confirmação (imediata) e lembrete (24 h antes do início), para o cliente e para o profissional. Sem lembrete quando a reserva é feita com menos de 24 h de antecedência.
+- Cancelar ou reagendar marca os lembretes pendentes como `CANCELADA`. O reagendamento grava os lembretes do novo horário. Só `PENDENTE` é enviada; `ENVIADA`, `FALHA` e `CANCELADA` são finais.
+- Corrida aceita: se o cancelamento acontecer no mesmo instante em que o job envia aquele lembrete, o e-mail já terá saído e o job grava `ENVIADA` por cima de `CANCELADA`. A correção, se necessária, é um update condicional (`WHERE status = 'PENDENTE'`) no adaptador.
 - O job entrega cada e-mail pela porta `NotificacaoGateway`. Uma `FalhaNoEnvioException` conta como tentativa.
 - O envio é "pelo menos uma vez": se a task cair depois de enviar e antes de atualizar o status, o e-mail pode se repetir. Esse risco é aceitável para este domínio.
 
