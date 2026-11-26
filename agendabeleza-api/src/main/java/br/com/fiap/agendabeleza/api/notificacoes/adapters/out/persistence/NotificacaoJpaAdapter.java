@@ -14,6 +14,7 @@ import br.com.fiap.agendabeleza.api.notificacoes.domain.Mensagem;
 import br.com.fiap.agendabeleza.api.notificacoes.domain.Notificacao;
 import br.com.fiap.agendabeleza.api.notificacoes.domain.PapelDestinatario;
 import br.com.fiap.agendabeleza.api.notificacoes.domain.StatusNotificacao;
+import br.com.fiap.agendabeleza.api.notificacoes.domain.TipoNotificacao;
 
 /**
  * Implementa {@link NotificacaoRepository} com JPA. {@link #salvarTodas} entra na transação de quem chama, que é a
@@ -45,6 +46,15 @@ class NotificacaoJpaAdapter implements NotificacaoRepository {
 	public List<Notificacao> pendentesAte(Instant momento, int limite) {
 		return repositorio.findByStatusAndEnviarEmLessThanEqualOrderByEnviarEm(StatusNotificacao.PENDENTE, momento,
 				Limit.of(limite)).stream()
+				.map(NotificacaoJpaAdapter::paraDominio)
+				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Notificacao> pendentesDoAgendamento(UUID agendamentoId, TipoNotificacao tipo) {
+		return repositorio.findByAgendamentoIdAndTipoAndStatus(agendamentoId, tipo, StatusNotificacao.PENDENTE)
+				.stream()
 				.map(NotificacaoJpaAdapter::paraDominio)
 				.toList();
 	}

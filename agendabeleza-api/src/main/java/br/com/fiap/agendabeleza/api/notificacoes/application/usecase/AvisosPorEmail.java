@@ -14,12 +14,17 @@ import br.com.fiap.agendabeleza.api.notificacoes.domain.PapelDestinatario;
 import br.com.fiap.agendabeleza.api.notificacoes.domain.TipoNotificacao;
 
 /**
- * Implementa {@link AvisosDoAgendamento} gravando os e-mails na outbox, um para o cliente e outro para o
- * profissional, para envio imediato pelo job. Nada é enviado aqui: a gravação acompanha a transação de quem chama, e
- * um servidor de e-mail fora do ar não desfaz a reserva.
- * <p>
+ * Implementa {@link AvisosDoAgendamento} gravando os e-mails na outbox, sempre um para o cliente e outro para o
+ * profissional. Nada é enviado aqui: a gravação acompanha a transação de quem chama, e o job envia depois.
+ * <ul>
+ * <li>Reserva: confirmação imediata e lembrete {@link Notificacao#ANTECEDENCIA_DO_LEMBRETE} antes do início.</li>
+ * <li>Cancelamento: os lembretes pendentes são cancelados, e o aviso de cancelamento sai imediatamente.</li>
+ * <li>Reagendamento: os lembretes pendentes do horário antigo são cancelados, e o aviso e os lembretes do novo
+ * horário são gravados.</li>
+ * </ul>
  * O e-mail do cliente só chega na reserva. Nos avisos seguintes ele vem da outbox; se não houver, como em
- * agendamentos anteriores às notificações, só o profissional é avisado.
+ * agendamentos anteriores às notificações, só o profissional é avisado. As mensagens novas são montadas antes de
+ * qualquer gravação, então um e-mail inválido não deixa nada pela metade.
  */
 public class AvisosPorEmail implements AvisosDoAgendamento {
 
@@ -33,17 +38,31 @@ public class AvisosPorEmail implements AvisosDoAgendamento {
 
 	@Override
 	public void reservado(AvisoDoAgendamento aviso, String emailCliente) {
-		registrar(TipoNotificacao.CONFIRMACAO, aviso, List.of(emailCliente));
+		Instant agora = relogio.instant();
+		List<String> emailsDoCliente = List.of(emailCliente);
+		List<Notificacao> novas = new ArrayList<>(
+				paraOsDestinatarios(TipoNotificacao.CONFIRMACAO, aviso, emailsDoCliente, agora));
+		novas.addAll(lembretes(aviso, emailsDoCliente, agora));
+		notificacoes.salvarTodas(novas);
 	}
 
 	@Override
 	public void cancelado(AvisoDoAgendamento aviso) {
-		registrar(TipoNotificacao.CANCELAMENTO, aviso, emailDoClienteRegistrado(aviso));
+		List<Notificacao> novas = paraOsDestinatarios(TipoNotificacao.CANCELAMENTO, aviso,
+				emailDoClienteRegistrado(aviso), relogio.instant());
+		cancelarLembretesPendentes(aviso);
+		notificacoes.salvarTodas(novas);
 	}
 
 	@Override
 	public void reagendado(AvisoDoAgendamento aviso) {
-		registrar(TipoNotificacao.REAGENDAMENTO, aviso, emailDoClienteRegistrado(aviso));
+		Instant agora = relogio.instant();
+		List<String> emailsDoCliente = emailDoClienteRegistrado(aviso);
+		List<Notificacao> novas = new ArrayList<>(
+				paraOsDestinatarios(TipoNotificacao.REAGENDAMENTO, aviso, emailsDoCliente, agora));
+		novas.addAll(lembretes(aviso, emailsDoCliente, agora));
+		cancelarLembretesPendentes(aviso);
+		notificacoes.salvarTodas(novas);
 	}
 
 	/** Vazio quando a reserva não deixou e-mail do cliente na outbox. */
@@ -51,22 +70,39 @@ public class AvisosPorEmail implements AvisosDoAgendamento {
 		return notificacoes.emailDoCliente(aviso.agendamentoId()).stream().toList();
 	}
 
+	/** Nenhum lembrete se a antecedência já passou: a confirmação acabou de sair. */
+	private List<Notificacao> lembretes(AvisoDoAgendamento aviso, List<String> emailsDoCliente, Instant agora) {
+		Instant enviarEm = aviso.inicio().minus(Notificacao.ANTECEDENCIA_DO_LEMBRETE);
+		if (!enviarEm.isAfter(agora)) {
+			return List.of();
+		}
+		return paraOsDestinatarios(TipoNotificacao.LEMBRETE, aviso, emailsDoCliente, enviarEm);
+	}
+
+	/** O lembrete que já saiu fica como está; só os pendentes deixam de valer. */
+	private void cancelarLembretesPendentes(AvisoDoAgendamento aviso) {
+		for (Notificacao lembrete : notificacoes.pendentesDoAgendamento(aviso.agendamentoId(),
+				TipoNotificacao.LEMBRETE)) {
+			lembrete.cancelar();
+			notificacoes.atualizar(lembrete);
+		}
+	}
+
 	/**
-	 * Fluxo comum dos três avisos. As mensagens são montadas antes de gravar, então um e-mail inválido não deixa
-	 * nada pela metade.
+	 * Fluxo comum de todos os avisos: uma notificação por destinatário, com o mesmo texto.
 	 *
 	 * @param emailsDoCliente zero ou um endereço
 	 */
-	private void registrar(TipoNotificacao tipo, AvisoDoAgendamento aviso, List<String> emailsDoCliente) {
+	private static List<Notificacao> paraOsDestinatarios(TipoNotificacao tipo, AvisoDoAgendamento aviso,
+			List<String> emailsDoCliente, Instant enviarEm) {
 		HorarioNotificado horario = new HorarioNotificado(aviso.nomeEstabelecimento(), aviso.nomeProfissional(),
 				aviso.inicio(), aviso.fuso());
-		Instant agora = relogio.instant();
 		List<Notificacao> novas = new ArrayList<>();
 		emailsDoCliente.forEach(email -> novas.add(Notificacao.pendente(aviso.agendamentoId(), tipo,
-				PapelDestinatario.CLIENTE, tipo.mensagemPara(email, horario), agora)));
+				PapelDestinatario.CLIENTE, tipo.mensagemPara(email, horario), enviarEm)));
 		novas.add(Notificacao.pendente(aviso.agendamentoId(), tipo, PapelDestinatario.PROFISSIONAL,
-				tipo.mensagemPara(aviso.emailProfissional(), horario), agora));
-		notificacoes.salvarTodas(novas);
+				tipo.mensagemPara(aviso.emailProfissional(), horario), enviarEm));
+		return novas;
 	}
 
 }

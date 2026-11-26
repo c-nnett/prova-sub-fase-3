@@ -12,7 +12,9 @@ public enum TipoNotificacao {
 
 	CONFIRMACAO("Agendamento reservado", "O agendamento no %s com %s está reservado para %s às %s."),
 	CANCELAMENTO("Agendamento cancelado", "O agendamento no %s com %s em %s às %s foi cancelado."),
-	REAGENDAMENTO("Agendamento reagendado", "O agendamento no %s com %s foi reagendado para %s às %s.");
+	REAGENDAMENTO("Agendamento reagendado", "O agendamento no %s com %s foi reagendado para %s às %s."),
+	/** Enviado {@link Notificacao#ANTECEDENCIA_DO_LEMBRETE} antes do início. */
+	LEMBRETE("Lembrete de agendamento", "Lembrete: o agendamento no %s com %s é em %s às %s.");
 
 	private static final DateTimeFormatter DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 	private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("HH:mm");

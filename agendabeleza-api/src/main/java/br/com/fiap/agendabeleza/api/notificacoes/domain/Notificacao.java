@@ -2,6 +2,7 @@ package br.com.fiap.agendabeleza.api.notificacoes.domain;
 
 import static br.com.fiap.agendabeleza.api.compartilhado.domain.Validacoes.obrigatorio;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -16,6 +17,8 @@ public class Notificacao {
 
 	public static final int MAXIMO_DE_TENTATIVAS = 5;
 	public static final String SOMENTE_PENDENTE = "Somente notificação pendente pode ser enviada";
+	/** Quanto antes do início o lembrete sai (planejamento, meta de 25/11). */
+	public static final Duration ANTECEDENCIA_DO_LEMBRETE = Duration.ofHours(24);
 
 	private final UUID id;
 	private final UUID agendamentoId;
@@ -64,6 +67,12 @@ public class Notificacao {
 		exigirPendente();
 		this.status = StatusNotificacao.ENVIADA;
 		this.enviadaEm = obrigatorio(agora, "agora");
+	}
+
+	/** Desiste do envio. Só a pendente pode ser cancelada: a que já saiu não volta atrás. */
+	public void cancelar() {
+		exigirPendente();
+		this.status = StatusNotificacao.CANCELADA;
 	}
 
 	/** Conta uma tentativa. Continua pendente, para a próxima rodada, até o máximo de tentativas. */
