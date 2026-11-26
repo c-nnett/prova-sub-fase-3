@@ -3,6 +3,9 @@ package br.com.fiap.agendabeleza.api.busca.adapters.out.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,6 +19,7 @@ import br.com.fiap.agendabeleza.api.TestcontainersConfiguration;
 import br.com.fiap.agendabeleza.api.busca.application.port.CatalogoDeEstabelecimentos;
 import br.com.fiap.agendabeleza.api.busca.domain.EstabelecimentoEncontrado;
 import br.com.fiap.agendabeleza.api.busca.domain.FiltroDaBusca;
+import br.com.fiap.agendabeleza.api.busca.domain.JanelaDeDisponibilidade;
 import br.com.fiap.agendabeleza.api.busca.domain.OrdemDaBusca;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.NotaMedia;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.Pagina;
@@ -25,8 +29,10 @@ import br.com.fiap.agendabeleza.api.estabelecimentos.application.port.ServicoRep
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.CategoriaServico;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Endereco;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Estabelecimento;
+import br.com.fiap.agendabeleza.api.estabelecimentos.domain.HorarioFuncionamento;
 import br.com.fiap.agendabeleza.api.estabelecimentos.domain.Servico;
 import br.com.fiap.agendabeleza.api.profissionais.application.port.ProfissionalRepository;
+import br.com.fiap.agendabeleza.api.profissionais.domain.PeriodoTrabalho;
 import br.com.fiap.agendabeleza.api.profissionais.domain.Profissional;
 import br.com.fiap.agendabeleza.api.profissionais.domain.ServicoProfissional;
 
@@ -39,6 +45,9 @@ import br.com.fiap.agendabeleza.api.profissionais.domain.ServicoProfissional;
 class BuscaPersistenciaTest {
 
 	private static final Paginacao PRIMEIRA_PAGINA = Paginacao.de(0, 10);
+	private static final LocalDate SEXTA = LocalDate.of(2030, 3, 8);
+	private static final DayOfWeek DIA_DA_BUSCA = SEXTA.getDayOfWeek();
+	private static final DayOfWeek OUTRO_DIA = DIA_DA_BUSCA.minus(1);
 
 	@Autowired
 	private CatalogoDeEstabelecimentos catalogo;
@@ -93,10 +102,60 @@ class BuscaPersistenciaTest {
 
 	private Profissional profissional(Estabelecimento estabelecimento, boolean ativo, Servico servico,
 			String tarifa) {
+		return profissional(estabelecimento, ativo,
+				List.of(new ServicoProfissional(servico.id(), new BigDecimal(tarifa))), List.of());
+	}
+
+	private Profissional profissional(Estabelecimento estabelecimento, boolean ativo,
+			List<ServicoProfissional> servicosExecutados, List<PeriodoTrabalho> jornada) {
 		Profissional profissional = Profissional.cadastrar(estabelecimento.id(), null, "Ana", "ana@salao.com", null);
 		profissional.atualizarPerfil("Ana", "ana@salao.com", null, ativo);
-		profissional.definirServicos(List.of(new ServicoProfissional(servico.id(), new BigDecimal(tarifa))));
+		profissional.definirServicos(servicosExecutados);
+		profissional.definirJornada(jornada);
 		return profissionais.salvar(profissional);
+	}
+
+	/** Estabelecimento que funciona no dia da busca, das {@code abre} às {@code fecha}. */
+	private Estabelecimento aberto(String nome, String abre, String fecha) {
+		return abertoEm(nome, DIA_DA_BUSCA, abre, fecha);
+	}
+
+	private Estabelecimento abertoEm(String nome, DayOfWeek dia, String abre, String fecha) {
+		Estabelecimento estabelecimento = estabelecimento(nome, "Centro");
+		estabelecimento.definirHorarios(List.of(new HorarioFuncionamento(dia, hora(abre), hora(fecha))));
+		return estabelecimentos.salvar(estabelecimento);
+	}
+
+	/** Profissional ativo, sem serviços, com jornada no dia da busca. */
+	private Profissional trabalhando(Estabelecimento estabelecimento, String inicio, String fim) {
+		return profissional(estabelecimento, true, List.of(), List.of(periodo(DIA_DA_BUSCA, inicio, fim)));
+	}
+
+	private Profissional trabalhando(Estabelecimento estabelecimento, PeriodoTrabalho periodo, Servico servico,
+			String tarifa) {
+		return profissional(estabelecimento, true,
+				List.of(new ServicoProfissional(servico.id(), new BigDecimal(tarifa))), List.of(periodo));
+	}
+
+	private static PeriodoTrabalho periodo(DayOfWeek dia, String inicio, String fim) {
+		return new PeriodoTrabalho(dia, hora(inicio), hora(fim));
+	}
+
+	private static LocalTime hora(String hora) {
+		return hora == null ? null : LocalTime.parse(hora);
+	}
+
+	private FiltroDaBusca disponivelNaSexta(String inicio, String fim) {
+		return new FiltroDaBusca(null, cidade, null, null, null, null, null, null, janela(inicio, fim));
+	}
+
+	private FiltroDaBusca cabeloNaSexta(String precoMaximo, String inicio, String fim) {
+		return new FiltroDaBusca(null, cidade, null, null, CategoriaServico.CABELO, null, null, decimal(precoMaximo),
+				janela(inicio, fim));
+	}
+
+	private static JanelaDeDisponibilidade janela(String inicio, String fim) {
+		return new JanelaDeDisponibilidade(SEXTA, hora(inicio), hora(fim));
 	}
 
 	private FiltroDaBusca naCidade() {
@@ -289,6 +348,78 @@ class BuscaPersistenciaTest {
 				OrdemDaBusca.NOME);
 
 		assertThat(pagina.itens()).isEmpty();
+		assertThat(pagina.totalDeItens()).isEqualTo(1);
+	}
+
+	@Test
+	void soComADataEntraQuemAbreETemProfissionalAtivoComJornadaNoDia() {
+		trabalhando(aberto("Salão Disponível", "09:00", "18:00"), "09:00", "12:00");
+		Estabelecimento fechadoNoDia = abertoEm("Salão Fechado no Dia", OUTRO_DIA, "09:00", "18:00");
+		trabalhando(fechadoNoDia, "09:00", "12:00");
+		Estabelecimento semJornadaNoDia = aberto("Salão Sem Jornada", "09:00", "18:00");
+		profissional(semJornadaNoDia, true, List.of(), List.of(periodo(OUTRO_DIA, "09:00", "12:00")));
+		Estabelecimento soComInativo = aberto("Salão Equipe Inativa", "09:00", "18:00");
+		profissional(soComInativo, false, List.of(), List.of(periodo(DIA_DA_BUSCA, "09:00", "12:00")));
+		estabelecimento("Salão Sem Horários", "Centro");
+
+		assertThat(nomesEncontrados(disponivelNaSexta(null, null))).containsExactly("Salão Disponível");
+	}
+
+	@Test
+	void janelaQueSoEncostaNaJornadaNaoConta() {
+		trabalhando(aberto("Salão Manhã", "09:00", "18:00"), "09:00", "12:00");
+
+		assertThat(nomesEncontrados(disponivelNaSexta("12:00", "14:00"))).isEmpty();
+		assertThat(nomesEncontrados(disponivelNaSexta("11:00", "14:00"))).containsExactly("Salão Manhã");
+		assertThat(nomesEncontrados(disponivelNaSexta("07:00", "09:00"))).isEmpty();
+	}
+
+	@Test
+	void soComAHoraInicialOuSoComAFinal() {
+		trabalhando(aberto("Salão Manhã", "09:00", "18:00"), "09:00", "12:00");
+
+		assertThat(nomesEncontrados(disponivelNaSexta("12:00", null))).isEmpty();
+		assertThat(nomesEncontrados(disponivelNaSexta("11:30", null))).containsExactly("Salão Manhã");
+		assertThat(nomesEncontrados(disponivelNaSexta(null, "09:00"))).isEmpty();
+		assertThat(nomesEncontrados(disponivelNaSexta(null, "09:15"))).containsExactly("Salão Manhã");
+	}
+
+	@Test
+	void jornadaFuncionamentoEJanelaPrecisamDeUmInstanteEmComum() {
+		trabalhando(aberto("Salão Jornada Antes", "10:00", "18:00"), "08:00", "10:00");
+		trabalhando(aberto("Salão Jornada Cruzando", "10:00", "18:00"), "08:00", "11:00");
+
+		assertThat(nomesEncontrados(disponivelNaSexta("08:00", "12:00"))).containsExactly("Salão Jornada Cruzando");
+	}
+
+	@Test
+	void comFiltroDeServicoOProfissionalDisponivelPrecisaExecutalo() {
+		Estabelecimento cabeleireiroDeFolga = aberto("Salão Cabeleireiro de Folga", "09:00", "18:00");
+		trabalhando(cabeleireiroDeFolga, periodo(DIA_DA_BUSCA, "14:00", "18:00"),
+				servico(cabeleireiroDeFolga, "Manicure", CategoriaServico.UNHAS), "40.00");
+		trabalhando(cabeleireiroDeFolga, periodo(OUTRO_DIA, "14:00", "18:00"),
+				servico(cabeleireiroDeFolga, "Corte", CategoriaServico.CABELO), "40.00");
+		Estabelecimento cabeleireiroNoDia = aberto("Salão Cabeleireiro no Dia", "09:00", "18:00");
+		trabalhando(cabeleireiroNoDia, periodo(DIA_DA_BUSCA, "14:00", "18:00"),
+				servico(cabeleireiroNoDia, "Corte", CategoriaServico.CABELO), "80.00");
+
+		assertThat(nomesEncontrados(cabeloNaSexta(null, "14:00", "18:00")))
+				.containsExactly("Salão Cabeleireiro no Dia");
+		assertThat(nomesEncontrados(cabeloNaSexta("50", "14:00", "18:00"))).isEmpty();
+		assertThat(nomesEncontrados(cabeloNaSexta("80", "14:00", "18:00")))
+				.containsExactly("Salão Cabeleireiro no Dia");
+	}
+
+	@Test
+	void estabelecimentoComVariosProfissionaisDisponiveisApareceUmaVez() {
+		Estabelecimento salao = aberto("Salão Cheio", "09:00", "18:00");
+		trabalhando(salao, "09:00", "12:00");
+		trabalhando(salao, "13:00", "18:00");
+
+		Pagina<EstabelecimentoEncontrado> pagina = catalogo.buscar(disponivelNaSexta(null, null), PRIMEIRA_PAGINA,
+				OrdemDaBusca.NOME);
+
+		assertThat(nomes(pagina)).containsExactly("Salão Cheio");
 		assertThat(pagina.totalDeItens()).isEqualTo(1);
 	}
 

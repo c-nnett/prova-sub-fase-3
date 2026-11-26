@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import br.com.fiap.agendabeleza.api.busca.application.usecase.BuscarEstabelecimentosUseCase;
 import br.com.fiap.agendabeleza.api.busca.domain.EstabelecimentoEncontrado;
 import br.com.fiap.agendabeleza.api.busca.domain.FiltroDaBusca;
+import br.com.fiap.agendabeleza.api.busca.domain.JanelaDeDisponibilidade;
 import br.com.fiap.agendabeleza.api.busca.domain.OrdemDaBusca;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.Pagina;
 import br.com.fiap.agendabeleza.api.compartilhado.domain.RegraNegocioException;
@@ -89,12 +92,16 @@ class BuscaControllerTest {
 				.param("precoMaximo", "90.50")
 				.param("pagina", "2")
 				.param("tamanho", "5")
+				.param("data", "2030-03-08")
+				.param("horaInicio", "14:00")
+				.param("horaFim", "18:30")
 				.param("ordem", "NOME"))
 				.andExpect(status().isOk());
 
 		assertThat(consultaRecebida()).isEqualTo(new BuscarEstabelecimentosUseCase.Consulta("Bela", "São Paulo",
 				"Consolação", "corte", CategoriaServico.CABELO, new BigDecimal("4"), new BigDecimal("50"),
-				new BigDecimal("90.50"), null, null, null, 2, 5, OrdemDaBusca.NOME));
+				new BigDecimal("90.50"), LocalDate.of(2030, 3, 8), LocalTime.of(14, 0), LocalTime.of(18, 30), 2, 5,
+				OrdemDaBusca.NOME));
 	}
 
 	@Test
@@ -131,12 +138,25 @@ class BuscaControllerTest {
 			"notaMinima, 5.5",
 			"notaMinima, -1",
 			"precoMinimo, -10",
-			"precoMaximo, -0.01" })
+			"precoMaximo, -0.01",
+			"data, 08/03/2030",
+			"data, 2030-02-30",
+			"horaInicio, 14h",
+			"horaFim, 25:00" })
 	void parametroMalformadoOuForaDoLimiteResponde400(String parametro, String valor) throws Exception {
 		mvc.perform(get(ROTA).param(parametro, valor))
 				.andExpect(status().isBadRequest());
 
 		verifyNoInteractions(buscar);
+	}
+
+	@Test
+	void dataNoPassadoResponde422() throws Exception {
+		given(buscar.executar(any())).willThrow(new RegraNegocioException(JanelaDeDisponibilidade.DATA_NO_PASSADO));
+
+		mvc.perform(get(ROTA).param("data", "2020-01-01"))
+				.andExpect(status().isUnprocessableContent())
+				.andExpect(jsonPath("$.detail").value(JanelaDeDisponibilidade.DATA_NO_PASSADO));
 	}
 
 	@Test
