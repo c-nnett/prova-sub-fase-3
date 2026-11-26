@@ -481,15 +481,11 @@ O caso de uso `ConsultarHorariosLivresUseCase` monta o dia no fuso do estabeleci
 ## 5. Índices
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+-- Busca: categoria dentro dos serviços ativos de cada estabelecimento
+CREATE INDEX idx_servico_categoria ON servico (estabelecimento_id, categoria) WHERE ativo;
 
--- Busca por nome e serviço
-CREATE INDEX idx_estabelecimento_nome_trgm ON estabelecimento USING gin (nome gin_trgm_ops);
-CREATE INDEX idx_servico_nome_trgm ON servico USING gin (nome gin_trgm_ops);
-CREATE INDEX idx_servico_categoria ON servico (categoria) WHERE ativo;
-
--- Filtros de localização, avaliação e preço
-CREATE INDEX idx_estabelecimento_cidade_bairro ON estabelecimento (cidade, bairro) WHERE ativo;
+-- Busca: localização (sem diferenciar maiúsculas), avaliação e preço
+CREATE INDEX idx_estabelecimento_cidade_bairro ON estabelecimento (lower(cidade), lower(bairro)) WHERE ativo;
 CREATE INDEX idx_estabelecimento_nota ON estabelecimento (nota_media DESC NULLS LAST) WHERE ativo;
 CREATE INDEX idx_profissional_servico_tarifa ON profissional_servico (servico_id, tarifa);
 
@@ -510,6 +506,8 @@ CREATE INDEX idx_notificacao_pendente ON notificacao (enviar_em) WHERE status = 
 CREATE INDEX idx_evento_pendente ON evento_calendario (atualizado_em) WHERE acao_pendente <> 'NENHUMA';
 ```
 
+A busca não usa `pg_trgm` (planejamento, seção 2.1): nome do estabelecimento e nome do serviço são buscados por trecho com `lower(...) LIKE '%trecho%'`, que não aproveita índice B-tree. Com o volume do projeto, a consulta é limitada pelos outros filtros (cidade, categoria) e pela paginação. Cidade e bairro são comparados com `lower(...)`, a mesma expressão do índice `idx_estabelecimento_cidade_bairro`.
+
 A restrição `agendamento_sem_conflito` cria um índice GiST parcial sobre `(profissional_id, tstzrange(inicio, fim))`, que serve apenas à própria restrição. A consulta de ocupações compara as colunas `inicio` e `fim` e recebe os status como parâmetro, e por isso usa `idx_agendamento_prof_periodo`.
 
 ### Busca por distância
@@ -528,8 +526,9 @@ Os arquivos ficam em `src/main/resources/db/migration/` e seguem a convenção `
 | `V1_1795485921750__criar_indice_ocupacoes_agendamento.sql` | índice `idx_agendamento_prof_periodo`, para a consulta de ocupações do profissional | 23/11 |
 | `V1_1795618800000__criar_tabela_notificacao.sql` | `notificacao` (outbox, com a coluna `papel`), índices `idx_notificacao_pendente` (parcial, `status = 'PENDENTE'`) e `idx_notificacao_agendamento_papel` | 25/11 |
 | `V1_1795657196611__criar_tabela_avaliacao.sql` | `avaliacao` (UK `agendamento_id`, `CHECK` das notas de 1 a 5), índices `idx_avaliacao_estab` e `idx_avaliacao_prof` | 26/11 |
+| `V1_1795662281145__criar_indices_busca.sql` | índices da busca: `idx_estabelecimento_cidade_bairro` (`lower(cidade), lower(bairro)`, parcial `ativo`), `idx_estabelecimento_nota` (`nota_media DESC NULLS LAST`, parcial `ativo`) e `idx_servico_categoria` (`estabelecimento_id, categoria`, parcial `ativo`). A faixa de preço usa o `idx_profissional_servico_tarifa`, criado com os profissionais | 27/11 |
 
-A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. As próximas migrações seguem o planejamento: notificações, avaliações e índices de busca. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
+A tabela `bloqueio_agenda` é usada pelo agregado `BloqueioAgenda`, que é separado do profissional e tem endpoints próprios para criar, listar e remover. A consulta por período usa o índice `idx_bloqueio_prof_periodo`. A sobreposição de períodos da jornada é validada no domínio, sem `EXCLUDE`. A busca lê essas tabelas por entidades JPA somente leitura do próprio módulo `busca` (`@Immutable`), sem gravar nelas. A próxima migração prevista é a do token do feed `.ics`. A busca por distância e o `pg_trgm` saíram do escopo (planejamento, seção 2.1), então as colunas `latitude` e `longitude` não foram criadas.
 
 ## 7. Funcionalidades x tabelas
 

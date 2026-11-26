@@ -345,3 +345,46 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - PR da `issue-2611` e busca com filtros (funcionalidade 5).
+
+### 27/11 (sexta): busca e filtros, meta 1 (feita em 26/11, adiantada; branch `issue-2711`)
+
+**Resultado:** Meta 1 de 2 concluída um dia antes do planejado. Funcionalidade 5 quase pronta: falta o filtro de disponibilidade
+**Horas:** a preencher, de 2 h planejadas para o dia
+**Tarefas:** 1,5 de 2 (migração feita; rota publicada sem disponibilidade)
+**Pronto quando:** atendido para os filtros desta meta. Os filtros funcionam combinados, e a resposta é paginada, comprovado pelo `BuscaPersistenciaTest`
+
+**Realizado**
+- `GET /api/v1/busca/estabelecimentos`, público: `nome`, `cidade`, `bairro`, `servico`, `categoria`, `notaMinima`, `precoMinimo`, `precoMaximo`, `pagina`, `tamanho` (padrão 20, máximo 50) e `ordem` (`MELHOR_AVALIADOS`, padrão, ou `NOME`). Resposta `{ itens, pagina, tamanho, totalDeItens, totalDePaginas }`.
+- Migração `V1_1795662281145__criar_indices_busca.sql`: `idx_estabelecimento_cidade_bairro`, `idx_estabelecimento_nota` e `idx_servico_categoria`, todos parciais (`WHERE ativo`).
+- `Paginacao` e `Pagina` em `compartilhado/domain`, reutilizáveis por outras listas; `FiltroDaBusca`, `OrdemDaBusca` e `EstabelecimentoEncontrado` no domínio da busca; `BuscarEstabelecimentosUseCase` e a porta `CatalogoDeEstabelecimentos`.
+- Em TDD: `test:` → `feat:` do núcleo, depois `test:` → `feat:` da persistência e do controller.
+
+**Fora do plano**
+- Nenhum.
+
+**Métricas do dia**
+- Testes: 661 no `./mvnw verify`, todos passando (eram 595), com as regras de cobertura do JaCoCo atendidas. 9 cenários BDD, todos verdes.
+- Cobertura de linhas: 100% em `busca.domain`, `busca.application` e `compartilhado.domain`; 90,7% no adaptador de persistência da busca.
+
+**Desafios e soluções**
+- **Ler cadastros de outros módulos sem quebrar a arquitetura.**
+  - *Como apareceu:* a busca filtra estabelecimento, serviços, tarifas e profissionais, mas o ArchUnit proíbe um módulo de usar os adaptadores (e as entidades JPA) de outro.
+  - *Solução:* o módulo `busca` virou um modelo de leitura, com entidades JPA próprias e `@Immutable` sobre as mesmas tabelas, só com as colunas usadas. Os módulos donos continuam sendo os únicos que gravam.
+- **Serviço e preço do mesmo serviço, sem repetir o estabelecimento.**
+  - *Como apareceu:* com `JOIN`, "corte até R$ 50" aceitaria um salão com corte a R$ 120 e manicure a R$ 40, e um salão com vários serviços na faixa apareceria várias vezes, distorcendo o total da página.
+  - *Solução:* um único `EXISTS` correlacionado sobre os serviços ativos do estabelecimento, com outro `EXISTS` para a tarifa de profissional ativo dentro da faixa. O preço é a tarifa do profissional, que é o valor cobrado na reserva.
+- **Páginas estáveis e sem avaliação no fim.**
+  - *Como apareceu:* no PostgreSQL, `ORDER BY nota_media DESC` põe os nulos primeiro, e empates sem desempate podem trocar de página entre consultas.
+  - *Solução:* `Sort.Order.desc("notaMedia").nullsLast()`, desempate por nome e por identificador, e ordem fechada em enum, em vez de um `sort` livre com nome de propriedade.
+- **Texto digitado na busca.**
+  - *Como apareceu:* `%` e `_` são curingas do `LIKE`, então buscar "100%" encontraria "1000".
+  - *Solução:* os curingas são escapados, e os valores vão como parâmetros da consulta, já em minúsculas, nunca como literal no SQL.
+
+**Riscos e decisões**
+- Os parâmetros usam nomes completos (`precoMinimo`, `pagina`, `tamanho`, `ordem`), e não `precoMin`/`page`/`size`/`sort`, como previa a arquitetura, pela diretriz de nomes sem abreviação.
+- Limites de cada parâmetro respondem 400 (validação de método do Spring MVC); a faixa de preço invertida é regra entre campos, do domínio, e responde 422.
+- Sem `pg_trgm`, o trecho do nome não usa índice. Aceitável no volume do projeto; o teste de carga da busca (28/11) vai medir.
+- A disponibilidade, primeiro item da ordem de corte, vai considerar só a jornada do profissional no dia da semana e o funcionamento, sem descontar agendamentos e bloqueios.
+
+**Próximo passo**
+- Meta 2: filtro de disponibilidade (`data`, `horaInicio`, `horaFim`) e PR da `issue-2711`.
