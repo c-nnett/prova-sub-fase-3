@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,11 +17,12 @@ import br.com.fiap.agendabeleza.api.estabelecimentos.domain.CategoriaServico;
 class FiltroDaBuscaTest {
 
 	private static FiltroDaBusca comPrecos(String precoMinimo, String precoMaximo) {
-		return new FiltroDaBusca(null, null, null, null, null, null, decimal(precoMinimo), decimal(precoMaximo));
+		return new FiltroDaBusca(null, null, null, null, null, null, decimal(precoMinimo), decimal(precoMaximo),
+				null);
 	}
 
 	private static FiltroDaBusca comNotaMinima(String notaMinima) {
-		return new FiltroDaBusca(null, null, null, null, null, decimal(notaMinima), null, null);
+		return new FiltroDaBusca(null, null, null, null, null, decimal(notaMinima), null, null, null);
 	}
 
 	private static BigDecimal decimal(String valor) {
@@ -29,7 +32,7 @@ class FiltroDaBuscaTest {
 	@Test
 	void removeEspacosDasPontasDosTextos() {
 		FiltroDaBusca filtro = new FiltroDaBusca("  Bela Vista ", " São Paulo", "Consolação ", " corte ", null, null,
-				null, null);
+				null, null, null);
 
 		assertThat(filtro.nome()).isEqualTo("Bela Vista");
 		assertThat(filtro.cidade()).isEqualTo("São Paulo");
@@ -39,7 +42,7 @@ class FiltroDaBuscaTest {
 
 	@Test
 	void textoEmBrancoNaoFiltra() {
-		FiltroDaBusca filtro = new FiltroDaBusca(" ", "", "\t", "  ", null, null, null, null);
+		FiltroDaBusca filtro = new FiltroDaBusca(" ", "", "\t", "  ", null, null, null, null, null);
 
 		assertThat(filtro.nome()).isNull();
 		assertThat(filtro.cidade()).isNull();
@@ -50,18 +53,30 @@ class FiltroDaBuscaTest {
 	@Test
 	void semCriteriosDeServicoNaoFiltraPorServico() {
 		FiltroDaBusca filtro = new FiltroDaBusca("Bela", "São Paulo", null, null, null, new BigDecimal("4"), null,
-				null);
+				null, null);
 
 		assertThat(filtro.filtraPorServico()).isFalse();
 	}
 
 	@Test
 	void nomeDoServicoCategoriaOuPrecoFiltramPorServico() {
-		assertThat(new FiltroDaBusca(null, null, null, "corte", null, null, null, null).filtraPorServico()).isTrue();
-		assertThat(new FiltroDaBusca(null, null, null, null, CategoriaServico.UNHAS, null, null, null)
+		assertThat(new FiltroDaBusca(null, null, null, "corte", null, null, null, null, null).filtraPorServico())
+				.isTrue();
+		assertThat(new FiltroDaBusca(null, null, null, null, CategoriaServico.UNHAS, null, null, null, null)
 				.filtraPorServico()).isTrue();
 		assertThat(comPrecos("10", null).filtraPorServico()).isTrue();
 		assertThat(comPrecos(null, "90").filtraPorServico()).isTrue();
+	}
+
+	@Test
+	void guardaAJanelaDeDisponibilidade() {
+		JanelaDeDisponibilidade sexta = new JanelaDeDisponibilidade(LocalDate.of(2030, 3, 8), LocalTime.of(14, 0),
+				null);
+
+		FiltroDaBusca filtro = new FiltroDaBusca(null, null, null, null, null, null, null, null, sexta);
+
+		assertThat(filtro.disponibilidade()).isEqualTo(sexta);
+		assertThat(filtro.filtraPorServico()).isFalse();
 	}
 
 	@Test
@@ -108,7 +123,7 @@ class FiltroDaBuscaTest {
 	void recusaTextoMaiorQueAColuna() {
 		String nomeLongo = "a".repeat(151);
 
-		assertThatThrownBy(() -> new FiltroDaBusca(nomeLongo, null, null, null, null, null, null, null))
+		assertThatThrownBy(() -> new FiltroDaBusca(nomeLongo, null, null, null, null, null, null, null, null))
 				.isInstanceOf(RegraNegocioException.class)
 				.hasMessageContaining("nome");
 	}

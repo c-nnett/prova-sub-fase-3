@@ -106,11 +106,11 @@ class BuscaPersistenciaTest {
 	private FiltroDaBusca filtro(String nome, String bairro, String servico, CategoriaServico categoria,
 			String precoMinimo, String precoMaximo) {
 		return new FiltroDaBusca(nome, cidade, bairro, servico, categoria, null, decimal(precoMinimo),
-				decimal(precoMaximo));
+				decimal(precoMaximo), null);
 	}
 
 	private FiltroDaBusca comNotaMinima(String notaMinima) {
-		return new FiltroDaBusca(null, cidade, null, null, null, new BigDecimal(notaMinima), null, null);
+		return new FiltroDaBusca(null, cidade, null, null, null, new BigDecimal(notaMinima), null, null, null);
 	}
 
 	private static BigDecimal decimal(String valor) {
@@ -143,7 +143,7 @@ class BuscaPersistenciaTest {
 		estabelecimento("Salão Paulista", "Bela Vista");
 
 		FiltroDaBusca filtro = new FiltroDaBusca(null, cidade.toUpperCase(), "CONSOLAÇÃO", null, null, null, null,
-				null);
+				null, null);
 
 		assertThat(nomesEncontrados(filtro)).containsExactly("Salão Augusta");
 	}
@@ -247,7 +247,7 @@ class BuscaPersistenciaTest {
 		profissional(outroNome, true, servico(outroNome, "Corte", CategoriaServico.CABELO), "80.00");
 
 		FiltroDaBusca filtro = new FiltroDaBusca("bela", cidade, "Centro", "corte", CategoriaServico.CABELO,
-				new BigDecimal("4"), new BigDecimal("50"), new BigDecimal("90"));
+				new BigDecimal("4"), new BigDecimal("50"), new BigDecimal("90"), null);
 
 		assertThat(nomesEncontrados(filtro)).containsExactly("Salão Bela Vista");
 	}

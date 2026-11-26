@@ -94,7 +94,7 @@ class BuscaControllerTest {
 
 		assertThat(consultaRecebida()).isEqualTo(new BuscarEstabelecimentosUseCase.Consulta("Bela", "São Paulo",
 				"Consolação", "corte", CategoriaServico.CABELO, new BigDecimal("4"), new BigDecimal("50"),
-				new BigDecimal("90.50"), 2, 5, OrdemDaBusca.NOME));
+				new BigDecimal("90.50"), null, null, null, 2, 5, OrdemDaBusca.NOME));
 	}
 
 	@Test
@@ -104,7 +104,7 @@ class BuscaControllerTest {
 		mvc.perform(get(ROTA)).andExpect(status().isOk());
 
 		assertThat(consultaRecebida()).isEqualTo(new BuscarEstabelecimentosUseCase.Consulta(null, null, null, null,
-				null, null, null, null, null, null, null));
+				null, null, null, null, null, null, null, null, null, null));
 	}
 
 	@Test
