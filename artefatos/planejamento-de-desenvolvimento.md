@@ -161,8 +161,8 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 #### Sex 27/11 (2h): busca e filtros
 
-- [ ] Criar migração `V5` com índices.
-- [ ] Publicar `GET /busca/estabelecimentos` com nome, cidade, bairro, serviço, nota mínima, faixa de preço e disponibilidade em uma data, com paginação.
+- [x] Criar migração `V5` com índices. Feita em 26/11 como `V1_1795662281145__criar_indices_busca.sql`, adiantada, na branch `issue-2711`.
+- [x] Publicar `GET /busca/estabelecimentos` com nome, cidade, bairro, serviço, nota mínima, faixa de preço e disponibilidade em uma data, com paginação. Feita em 26/11, adiantada, em duas metas na branch `issue-2711`. Desvio: a disponibilidade considera a jornada do profissional e o funcionamento no dia da semana, sem descontar agendamentos e bloqueios (simplificação do 1º item da ordem de corte, seção 8).
 
 **Pronto quando:** os filtros funcionam combinados, e a resposta é paginada. **Funcionalidade 5 pronta.**
 

@@ -256,7 +256,7 @@ Resposta de horários livres, com os horários no fuso do estabelecimento e `fim
 | POST | `/agendamentos/{id}/avaliacao` | Cliente do agendamento | Avalia atendimento concluído com `{ "notaEstabelecimento", "notaProfissional", "comentario"? }`, notas de 1 a 5 e comentário de até 1000 caracteres. Responde 201, 400 para nota ausente ou fora da escala e comentário longo, 404 para agendamento inexistente, 403 para quem não é o cliente e 422 para atendimento não concluído ou já avaliado |
 | GET | `/estabelecimentos/{id}/avaliacoes` | Público | Lista avaliações, da mais recente para a mais antiga, sem o `clienteId`. 404 se o estabelecimento não existir |
 | GET | `/profissionais/{id}/avaliacoes` | Público | Lista avaliações, da mais recente para a mais antiga, sem o `clienteId`. 404 se o profissional não existir |
-| GET | `/busca/estabelecimentos` | Público | Busca paginada com filtros |
+| GET | `/busca/estabelecimentos` | Público | Busca paginada de estabelecimentos ativos com filtros combinados. Responde 200 com `{ itens, pagina, tamanho, totalDeItens, totalDePaginas }`; 400 para número, data, hora, categoria ou ordem malformados, página negativa, tamanho fora de 1 a 50, nota mínima fora de 0 a 5 e preço negativo; 422 se `precoMinimo` for maior que `precoMaximo`, se a `data` estiver no passado, se houver hora sem `data` ou se `horaInicio` não for anterior a `horaFim` |
 
 A avaliação roda em `ExecucaoSerializada` com a chave do estabelecimento, que já abre uma transação e serializa as avaliações dele. Dentro dela, o caso de uso grava a avaliação e recalcula a nota média e o total do estabelecimento e do profissional a partir da soma de todas as avaliações (`NotaMedia`, duas casas, arredondamento `HALF_UP`). Como o profissional pertence a um único estabelecimento, a mesma trava protege as duas médias. As colunas `nota_media` e `total_avaliacoes` são só leitura nas entidades JPA e mudam apenas por `atualizarAvaliacoes`, para que uma edição do gestor ou do perfil feita ao mesmo tempo não sobrescreva as notas. `GET /estabelecimentos/{id}` e `GET /profissionais/{id}` devolvem `notaMedia` (nula até a primeira avaliação) e `totalAvaliacoes`.
 
@@ -266,11 +266,17 @@ Filtros de `/busca/estabelecimentos`, combináveis entre si:
 |---|---|
 | Nome | `nome` |
 | Serviço | `servico`, `categoria` |
-| Localização | `cidade`, `bairro`, `latitude`, `longitude`, `raioKm` |
+| Localização | `cidade`, `bairro` |
 | Avaliação | `notaMinima` |
-| Faixa de preço | `precoMin`, `precoMax` |
-| Disponibilidade | `data`, `horaInicio`, `horaFim` |
-| Paginação e ordenação | `page`, `size`, `sort` |
+| Faixa de preço | `precoMinimo`, `precoMaximo` |
+| Disponibilidade | `data` (`aaaa-mm-dd`), `horaInicio`, `horaFim` (`hh:mm`, fim exclusivo) |
+| Paginação e ordenação | `pagina` (a partir de 0), `tamanho` (padrão 20, máximo 50), `ordem` (`MELHOR_AVALIADOS`, padrão, ou `NOME`) |
+
+Os nomes dos parâmetros são completos, sem abreviação (`precoMinimo`, e não `precoMin`). Nome do estabelecimento e do serviço são buscados por trecho; cidade e bairro, pelo valor exato; tudo sem diferenciar maiúsculas, e `%` e `_` digitados valem como texto. Serviço, categoria e faixa de preço valem para **o mesmo serviço ativo**, e o preço é a tarifa de um profissional ativo, que é o valor cobrado na reserva. Com `notaMinima`, quem ainda não foi avaliado fica de fora; na ordem `MELHOR_AVALIADOS`, vai para o fim. Toda ordem desempata pelo nome e pelo identificador, para que as páginas sejam estáveis. A busca por raio de distância foi cortada (planejamento, seção 2.1).
+
+Com `data`, entra o estabelecimento que tem um profissional ativo cuja jornada naquele dia da semana, o funcionamento do estabelecimento nesse dia e o horário pedido têm algum instante em comum (intervalos semiabertos: só encostar não conta). Sem horas, vale o dia inteiro; só com `horaInicio`, até o fim do dia; só com `horaFim`, desde a meia-noite. Com filtro de serviço, categoria ou preço, esse profissional precisa executar um serviço que atenda ao filtro. Agendamentos e bloqueios **não** são descontados: a busca aponta onde procurar, e o horário exato sai de `GET /profissionais/{id}/horarios-livres`. Data, horas e colunas `time` estão no fuso do estabelecimento, então não há conversão; só o "hoje" que recusa data no passado usa o fuso padrão (`America/Sao_Paulo`) com o `Clock` injetado. No adaptador, é um segundo `EXISTS`, sobre profissional, jornada e funcionamento, que reaproveita as condições de serviço e de faixa de preço do primeiro.
+
+O módulo `busca` é um modelo de leitura: como as regras ArchUnit impedem usar os adaptadores de outro módulo, ele tem entidades JPA próprias e somente leitura (`@Immutable`) sobre `estabelecimento`, `servico`, `profissional_servico` e `profissional`. Os filtros são `Specification` combináveis (`BuscaEspecificacoes`), com um único `EXISTS` correlacionado para serviço, categoria e preço, o que também evita repetir o estabelecimento no resultado. A paginação no núcleo usa `Paginacao` e `Pagina` (`compartilhado/domain`), e o adaptador as converte para o `PageRequest` do Spring Data.
 
 ## 6. Fluxos principais
 
