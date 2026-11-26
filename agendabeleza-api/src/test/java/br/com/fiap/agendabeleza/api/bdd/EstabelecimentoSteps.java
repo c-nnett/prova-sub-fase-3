@@ -1,6 +1,5 @@
 package br.com.fiap.agendabeleza.api.bdd;
 
-import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
@@ -10,28 +9,19 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.boot.test.web.server.LocalServerPort;
-
 import io.cucumber.datatable.DataTable;
 import io.cucumber.java.Before;
 import io.cucumber.java.pt.Dado;
 import io.cucumber.java.pt.E;
 import io.cucumber.java.pt.Entao;
 import io.cucumber.java.pt.Quando;
-import io.restassured.http.ContentType;
 import io.restassured.response.Response;
-import io.restassured.specification.RequestSpecification;
 
 /**
  * Passos da feature de cadastro de estabelecimento. A instância vale por cenário, então o estado abaixo não
  * passa de um cenário para outro. Cada cenário usa um gestor novo, sem limpar o banco.
  */
-public class EstabelecimentoSteps {
-
-	private static final String USUARIO = "X-Usuario-Id";
-
-	@LocalServerPort
-	private int porta;
+public class EstabelecimentoSteps extends ApiDaAplicacao {
 
 	private UUID gestorId;
 	private UUID estabelecimentoId;
@@ -40,11 +30,6 @@ public class EstabelecimentoSteps {
 	@Before
 	public void prepararCliente() {
 		gestorId = UUID.randomUUID();
-	}
-
-	private RequestSpecification api(UUID usuarioId) {
-		RequestSpecification requisicao = given().port(porta).basePath("/api/v1").contentType(ContentType.JSON);
-		return usuarioId == null ? requisicao : requisicao.header(USUARIO, usuarioId);
 	}
 
 	private static String estabelecimentoJson(Map<String, String> campos, String horariosJson) {
