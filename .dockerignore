@@ -1,0 +1,11 @@
+# Contexto de build da imagem da API (docker build -f agendabeleza-api/Dockerfile .). O Dockerfile só copia
+# agendabeleza-api/mvnw, .mvn, pom.xml e src; o resto fica de fora para não enviar centenas de MB ao daemon.
+.git
+.github
+.metadata
+.env
+**/target
+artefatos
+agendabeleza-carga
+infra
+**/*.log
