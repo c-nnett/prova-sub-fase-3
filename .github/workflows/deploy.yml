@@ -52,7 +52,7 @@ jobs:
           else
             valor=$INFORMADA
           fi
-          if ! printf '%s' "$valor" | grep -Eq '^([0-9a-f]{7,40})?$'; then
+          if [[ ! "$valor" =~ ^([0-9a-f]{7,40})?$ ]]; then
             echo "::error::Versão inválida: use o sha curto do commit (7 caracteres hexadecimais) ou deixe vazio."
             exit 1
           fi
