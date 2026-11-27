@@ -15,8 +15,9 @@ terraform {
   }
 }
 
-# Usa o cliente ssh do sistema: a chave precisa entrar sem senha interativa (README, pré-requisitos).
+# Na VPS (deploy automático, aplicar.sh), fala com o Docker pelo socket local. Fora dela, usa o cliente ssh do
+# sistema: a chave precisa entrar sem senha interativa (README, pré-requisitos).
 provider "docker" {
-  host     = "ssh://${var.acesso_ssh}"
-  ssh_opts = concat(["-o", "StrictHostKeyChecking=accept-new"], var.chave_ssh == "" ? [] : ["-i", var.chave_ssh])
+  host     = var.docker_host != "" ? var.docker_host : "ssh://${var.acesso_ssh}"
+  ssh_opts = var.docker_host != "" ? [] : concat(["-o", "StrictHostKeyChecking=accept-new"], var.chave_ssh == "" ? [] : ["-i", var.chave_ssh])
 }

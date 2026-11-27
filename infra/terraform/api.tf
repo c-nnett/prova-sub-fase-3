@@ -29,4 +29,10 @@ resource "docker_container" "api" {
   networks_advanced {
     name = docker_network.agendabeleza.name
   }
+
+  # Com memory definido, o Docker preenche o swap com o dobro do limite, e o provider acusaria essa diferença em todo
+  # plan. A VPS não tem swap, então o valor não muda nada.
+  lifecycle {
+    ignore_changes = [memory_swap]
+  }
 }

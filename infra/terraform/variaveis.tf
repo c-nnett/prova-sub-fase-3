@@ -1,6 +1,13 @@
-variable "acesso_ssh" {
-  description = "Usuário e endereço da VPS, no formato usuario@ip ou usuario@ip:porta (SSH fora da 22). O usuário precisa estar no grupo docker."
+variable "docker_host" {
+  description = "Endereço do Docker. Na VPS, onde o deploy automático roda o Terraform, é o socket local (unix:///var/run/docker.sock). Vazio usa SSH com acesso_ssh."
   type        = string
+  default     = ""
+}
+
+variable "acesso_ssh" {
+  description = "Só sem docker_host: usuário e endereço da VPS, no formato usuario@ip ou usuario@ip:porta (SSH fora da 22). O usuário precisa estar no grupo docker."
+  type        = string
+  default     = ""
 }
 
 variable "chave_ssh" {
