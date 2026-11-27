@@ -557,9 +557,9 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 ### 28/11 (sábado): deploy na nuvem (4ª meta do dia, feita em 26 e 27/11, adiantada; `master`)
 
-**Resultado:** Parcial. A API está no ar com HTTPS; falta assinar o feed `.ics` no Google Calendar
+**Resultado:** Concluído. A API está no ar com HTTPS, e o feed `.ics` foi assinado no Google Calendar
 **Horas:** a preencher, de 2 h planejadas
-**Tarefas:** 1 de 1, com a assinatura no Google pendente
+**Tarefas:** 1 de 1, incluindo a assinatura no Google, pendente da 1ª meta
 **Pronto quando:** atendido. O Swagger abre pelo endereço público (`https://143-95-161-158.sslip.io/swagger-ui.html`), e a regra de exatamente uma reserva aceita já tinha sido comprovada no Gatling
 
 **Realizado**
@@ -577,8 +577,13 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
   - o mesmo fluxo de ponta a ponta do Compose passou com 39 de 39 verificações (201, 400, 403, 404, 409 e 422);
   - o feed `.ics` sai com a URL `https://143-95-161-158.sslip.io/...` e responde `text/calendar`, o que confirma que a API monta os endereços certos atrás do proxy.
 
+- Assinatura no Google Calendar, pendente desde 26/11:
+  - foi criado na API pública o "Salão Demonstração AgendaBeleza", com a profissional "Ana Demonstração" e 4 agendamentos em 30/11, 01/12, 03/12 e 05/12/2026;
+  - a URL do feed foi gerada pelo endereço público, e o autor a assinou no Google Calendar (Configurações → Adicionar agenda → Do URL);
+  - os 4 eventos apareceram. **Funcionalidade 7 verificada de ponta a ponta.**
+
 **Pendente**
-- Assinar o feed no Google Calendar (Outras agendas, Do URL) e registrar uma captura de tela.
+- Guardar a captura de tela da agenda assinada para o Relatório Técnico.
 
 **Fora do plano**
 - Antes do apply, o autor cogitou trocar o Caddy por httpd ou Nginx Proxy Manager, e decidiu manter o Caddy (arquitetura §11.2).
@@ -588,6 +593,8 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - Antes do push, o `./mvnw clean verify` passou: 737 testes nos relatórios do Surefire e ArchUnit 8 de 8.
 
 **Desafios e soluções**
+- **O "+" de "Outras agendas" não apareceu no Google Calendar.**
+  - *Solução:* a mesma tela fica em Configurações → Adicionar agenda → Do URL, ou no endereço direto `calendar.google.com/calendar/u/0/r/settings/addbyurl`.
 - **HTTPS sem domínio.**
   - *Como apareceu:* a VPS só tem IP, e o Let's Encrypt não emite o certificado comum para IP. Sem HTTPS, o Google Calendar pode recusar o feed.
   - *Solução:* o nome `143-95-161-158.sslip.io`, de um DNS público e gratuito que devolve o IP embutido no nome. Só o `terraform.tfvars` mudou, e o Caddy emitiu o certificado na primeira subida.
@@ -601,7 +608,7 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 - Os testes de carga continuam medidos no ambiente local (seção 5). A VPS tem bem menos memória.
 
 **Próximo passo**
-- Assinar o feed `.ics` no Google Calendar pelo endereço público. Depois, Javadoc, revisão do Swagger e o Relatório Técnico (29/11).
+- Javadoc, revisão do Swagger e o Relatório Técnico (29/11).
 
 ### 28/11 (sábado): deploy automático pelo GitHub Actions (fora do plano, feito em 27/11; `master`)
 
