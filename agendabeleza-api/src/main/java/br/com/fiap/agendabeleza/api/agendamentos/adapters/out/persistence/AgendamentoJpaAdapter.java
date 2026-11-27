@@ -1,6 +1,7 @@
 package br.com.fiap.agendabeleza.api.agendamentos.adapters.out.persistence;
 
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -91,6 +92,22 @@ class AgendamentoJpaAdapter implements AgendamentoRepository {
 		return repositorio.findAll(AgendamentoEspecificacoes.da(filtro), ORDEM_DE_INICIO).stream()
 				.map(AgendamentoJpaAdapter::paraDominio)
 				.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Agendamento> listarDoProfissionalDesde(UUID profissionalId, Instant desde) {
+		return emOrdem(repositorio.findByProfissionalIdAndFimAfterOrderByInicio(profissionalId, desde));
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<Agendamento> listarDoClienteDesde(UUID clienteId, Instant desde) {
+		return emOrdem(repositorio.findByClienteIdAndFimAfterOrderByInicio(clienteId, desde));
+	}
+
+	private static List<Agendamento> emOrdem(List<AgendamentoJpaEntity> entidades) {
+		return entidades.stream().map(AgendamentoJpaAdapter::paraDominio).toList();
 	}
 
 	static boolean violouExclusao(Throwable excecao) {

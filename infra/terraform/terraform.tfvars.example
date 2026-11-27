@@ -1,0 +1,6 @@
+# Copie para terraform.tfvars (fora do Git) e preencha com os dados da sua VPS.
+acesso_ssh           = "usuario@203.0.113.10"
+chave_ssh            = "~/.ssh/id_ed25519"
+dominio_da_api       = "srv000000.hstgr.cloud"
+email_do_certificado = "voce@exemplo.com"
+versao_da_imagem     = "abc1234"

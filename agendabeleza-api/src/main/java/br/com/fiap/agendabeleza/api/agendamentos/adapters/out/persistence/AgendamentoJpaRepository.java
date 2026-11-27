@@ -29,4 +29,8 @@ interface AgendamentoJpaRepository extends JpaRepository<AgendamentoJpaEntity, U
 
 	List<AgendamentoJpaEntity> findByClienteIdOrderByInicioDesc(UUID clienteId);
 
+	List<AgendamentoJpaEntity> findByProfissionalIdAndFimAfterOrderByInicio(UUID profissionalId, Instant desde);
+
+	List<AgendamentoJpaEntity> findByClienteIdAndFimAfterOrderByInicio(UUID clienteId, Instant desde);
+
 }

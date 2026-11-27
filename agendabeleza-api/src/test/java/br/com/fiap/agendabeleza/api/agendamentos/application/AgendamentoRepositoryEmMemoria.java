@@ -1,5 +1,6 @@
 package br.com.fiap.agendabeleza.api.agendamentos.application;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -7,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.AgendamentoRepository;
 import br.com.fiap.agendabeleza.api.agendamentos.application.port.FiltroDaAgenda;
@@ -78,12 +80,33 @@ public class AgendamentoRepositoryEmMemoria implements AgendamentoRepository {
 				.toList();
 	}
 
+	@Override
+	public List<Agendamento> listarDoProfissionalDesde(UUID profissionalId, Instant desde) {
+		return terminandoDepoisDe(desde,
+				agendamento -> agendamento.profissionalId().equals(profissionalId));
+	}
+
+	@Override
+	public List<Agendamento> listarDoClienteDesde(UUID clienteId, Instant desde) {
+		return terminandoDepoisDe(desde, agendamento -> agendamento.pertenceAoCliente(clienteId));
+	}
+
 	public List<AlteracaoAgendamento> historico() {
 		return List.copyOf(historico);
 	}
 
 	public int total() {
 		return dados.size();
+	}
+
+	/** Mesmo critério do adaptador JPA para o calendário: fim depois de {@code desde}, em ordem de início. */
+	private List<Agendamento> terminandoDepoisDe(Instant desde, Predicate<Agendamento> doTitular) {
+		return dados.values().stream()
+				.filter(doTitular)
+				.filter(agendamento -> agendamento.fim().isAfter(desde))
+				.sorted(Comparator.comparing(Agendamento::inicio))
+				.map(this::copia)
+				.toList();
 	}
 
 	private static boolean iniciaNoPeriodo(Agendamento agendamento, Intervalo periodo) {

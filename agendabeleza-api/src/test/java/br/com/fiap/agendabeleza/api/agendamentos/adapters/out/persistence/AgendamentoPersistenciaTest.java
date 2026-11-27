@@ -229,6 +229,37 @@ class AgendamentoPersistenciaTest {
 				.containsExactly(tarde.id(), cedo.id());
 	}
 
+	@Test
+	void calendarioDoProfissionalTrazOsQueTerminamDepoisDoCorteEmOrdemDeInicio() {
+		Instant corteDoCalendario = DEZ_HORAS.plus(Duration.ofMinutes(15));
+		Agendamento depois = gravarComStatus(estabelecimento, ana, DEZ_HORAS.plus(Duration.ofDays(1)),
+				StatusAgendamento.CANCELADO);
+		Agendamento cruzandoOCorte = gravarComStatus(estabelecimento, ana, DEZ_HORAS, StatusAgendamento.CONFIRMADO);
+		gravarComStatus(estabelecimento, ana, DEZ_HORAS.minus(Duration.ofMinutes(30)), StatusAgendamento.CONCLUIDO);
+		gravarComStatus(estabelecimento, bia, DEZ_HORAS, StatusAgendamento.AGENDADO);
+
+		assertThat(agendamentos.listarDoProfissionalDesde(ana.id(), corteDoCalendario))
+				.extracting(Agendamento::id)
+				.containsExactly(cruzandoOCorte.id(), depois.id());
+	}
+
+	@Test
+	void calendarioDoClienteTrazOsQueTerminamDepoisDoCorteEmOrdemDeInicio() {
+		UUID clienteId = UUID.randomUUID();
+		Agendamento tarde = agendamentos.salvar(Agendamento.reservar(clienteId, estabelecimento.id(), bia.id(),
+				corte.id(), DEZ_HORAS.plus(Duration.ofDays(3)), 60, BigDecimal.TEN, null, AGORA));
+		Agendamento cedo = agendamentos.salvar(Agendamento.reservar(clienteId, estabelecimento.id(), ana.id(),
+				corte.id(), DEZ_HORAS, 60, BigDecimal.TEN, null, AGORA));
+		agendamentos.salvar(reservar(ana, DEZ_HORAS.plus(Duration.ofDays(5)), 60));
+
+		assertThat(agendamentos.listarDoClienteDesde(clienteId, DEZ_HORAS))
+				.extracting(Agendamento::id)
+				.containsExactly(cedo.id(), tarde.id());
+		assertThat(agendamentos.listarDoClienteDesde(clienteId, DEZ_HORAS.plus(Duration.ofHours(1))))
+				.extracting(Agendamento::id)
+				.containsExactly(tarde.id());
+	}
+
 	private Agendamento gravarComStatus(Estabelecimento dono, Profissional profissional, Instant inicio,
 			StatusAgendamento status) {
 		return agendamentos.salvar(Agendamento.reconstituir(UUID.randomUUID(), UUID.randomUUID(), dono.id(),

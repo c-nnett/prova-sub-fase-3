@@ -1,0 +1,8 @@
+{
+	email ${email_do_certificado}
+}
+
+${dominio} {
+	encode gzip
+	reverse_proxy ${endereco_da_api}
+}

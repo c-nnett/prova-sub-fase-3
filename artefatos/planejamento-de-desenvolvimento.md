@@ -168,10 +168,10 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 
 #### Sáb 28/11 (5,5h): calendário, carga e nuvem. Marco M3 e congelamento
 
-- [ ] Criar `CalendarioGateway` e publicar o feed `.ics` com token secreto para profissional e cliente. Testar a assinatura no Google Calendar (1,5h).
-- [ ] Escrever a feature BDD de agendamento (0,5h).
-- [ ] Criar teste de concorrência com Testcontainers e um cenário Gatling de reservas simultâneas e outro de busca. Guardar os relatórios (1,5h).
-- [ ] Publicar na plataforma gratuita com o perfil `production` e PostgreSQL gerenciado (2h).
+- [x] Criar `CalendarioGateway` e publicar o feed `.ics` com token secreto para profissional e cliente. Testar a assinatura no Google Calendar (1,5h). Feita em 26/11, adiantada, na branch `issue-2811`, com a migração `V1_1795709428698__criar_tabela_assinatura_calendario.sql`. Desvio: o feed foi verificado no Compose local, mas a assinatura no Google Calendar ficou para depois do deploy, porque o túnel rápido do Cloudflare falhou (429 e timeout).
+- [x] Escrever a feature BDD de agendamento (0,5h). Feita em 26/11, adiantada, na branch `issue-2811`, com 4 cenários: reserva, disputa pelo mesmo horário (201 e 409), atendimento fora da jornada (422) e cancelamento que libera o horário.
+- [x] Criar teste de concorrência com Testcontainers e um cenário Gatling de reservas simultâneas e outro de busca. Guardar os relatórios (1,5h). Feita em 26/11, adiantada, na branch `issue-2811`. O teste de concorrência já existia desde 23/11 (`ConcorrenciaAgendaTest`). O Gatling ficou num projeto separado, `agendabeleza-carga/`, com os 4 cenários da arquitetura §9.3 (disputa, reservas distintas, busca e horários livres), todos dentro das metas. Os relatórios estão em `artefatos/carga/`. Desvio: a carga foi reduzida para o Compose local (relatório, seção 5).
+- [ ] Publicar na plataforma gratuita com o perfil `production` e PostgreSQL gerenciado (2h). Em seguida, gerar a URL do feed `.ics` pelo endereço público e assiná-la no Google Calendar (pendente da 1ª meta).
 - [ ] Parar de incluir funcionalidades.
 
 **Pronto quando:** em N reservas simultâneas no mesmo horário, exatamente uma é aceita, e o Swagger abre pelo endereço público. **Funcionalidade 7 pronta e os itens do M3 atendidos.**

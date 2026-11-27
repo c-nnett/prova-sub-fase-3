@@ -72,14 +72,16 @@ Cada métrica passa a ser medida na data indicada, conforme a lista de conferên
 
 ### 3.2 Carga
 
-As metas são próprias do projeto e podem ser ajustadas após a primeira medição em 23/11.
+As metas são próprias do projeto. Em 26/11 a carga foi revista para o Docker Compose local (seção 5), e os tempos-meta foram mantidos. Medição de referência: 26/11, no notebook de desenvolvimento, com a API em `target development` do Compose (porta 8082) e outro projeto em Docker na mesma máquina. Os relatórios HTML estão em `artefatos/carga/`.
 
-| Cenário | Carga | Meta | Local | AWS |
+| Cenário | Carga | Meta | Local (26/11) | Nuvem |
 |---|---|---|---|---|
-| Busca com filtros | 200 usuários simultâneos por 5 minutos | p95 < 500 ms, erros < 1% | - | - |
-| Consulta de horários livres | 200 usuários simultâneos por 5 minutos | p95 < 500 ms, erros < 1% | - | - |
-| Reservas em horários distintos | 100 reservas por segundo durante 2 minutos | p95 < 800 ms, erros < 1% | - | - |
-| Disputa pelo mesmo horário | 100 requisições simultâneas | Exatamente um 201 e 99 respostas 409 | - | - |
+| Busca com filtros | 100 usuários simultâneos por 2 minutos | p95 < 500 ms, erros < 1% | ✅ 12.270 requisições, 94 req/s, p50 12 ms, **p95 24 ms**, p99 31 ms, máx. 41 ms, 0 erros | não medida |
+| Consulta de horários livres | 100 usuários simultâneos por 2 minutos | p95 < 500 ms, erros < 1% | ✅ 12.178 requisições, 93 req/s, p50 19 ms, **p95 32 ms**, p99 43 ms, máx. 223 ms, 0 erros | não medida |
+| Reservas em horários distintos | 30 reservas por segundo durante 1 minuto | p95 < 800 ms, erros < 1% | ✅ 1.800 reservas aceitas, p50 20 ms, **p95 32 ms**, p99 45 ms, máx. 123 ms, 0 erros | não medida |
+| Disputa pelo mesmo horário | 100 requisições simultâneas | Exatamente um 201 e 99 respostas 409 | ✅ **1 × 201 e 99 × 409**, 1 agendamento no painel; 201 em 143 ms, 409 com p50 820 ms e máx. 1.235 ms | não medida |
+
+A carga não é repetida na plataforma gratuita: os limites de CPU, memória e hibernação do plano mediriam a plataforma, não a aplicação.
 
 ## 4. Marcos e funcionalidades
 
@@ -108,7 +110,7 @@ Cortes de escopo (seção 7 do planejamento), tarefas remanejadas e metas ajusta
 
 | Data | Mudança | Motivo | Impacto |
 |---|---|---|---|
-| - | - | - | - |
+| 26/11 | Carga dos testes Gatling revista: consultas com 100 usuários por 2 min (eram 200 por 5 min) e reservas a 30/s por 1 min (eram 100/s por 2 min). Tempos-meta mantidos | A medição é no Docker Compose local do notebook, que divide CPU com outro projeto, e não mais na AWS | Os números valem para o ambiente local; a nuvem gratuita não é medida |
 
 ## 6. Registros diários
 
@@ -396,3 +398,158 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - PR da `issue-2711`. Depois, 28/11: feed `.ics`, carga e deploy.
+
+### 28/11 (sábado): feed `.ics` do calendário (1ª meta do dia, feita em 26/11, adiantada; branch `issue-2811`)
+
+**Resultado:** Concluído no código e verificado no Docker Compose local. **Funcionalidade 7 pronta**, com uma pendência: a assinatura no Google Calendar
+**Horas:** a preencher, de 1,5 h planejadas para a meta
+**Tarefas:** 1 de 1, com a verificação no Google adiada para depois do deploy
+**Pronto quando:** atendido em parte. O feed sai em iCalendar válido, por profissional e por cliente, com token secreto. Falta ver os eventos no Google Calendar
+
+**Realizado**
+- `POST /api/v1/calendario/assinaturas/profissionais/{profissionalId}` (gestor ou o próprio profissional) e `POST /api/v1/calendario/assinaturas/cliente` devolvem 201 com `{ url, webcal }`. `GET /api/v1/calendario/feeds/{token}.ics` é público e responde `text/calendar; charset=utf-8`.
+- Domínio: `TokenDoCalendario` (256 bits de `SecureRandom`, Base64 para URL, guardado só como SHA-256), `AssinaturaDoCalendario`, `EventoDoCalendario`, `SituacaoDoEvento` (o cancelado sai do feed) e `FeedDoCalendario`.
+- Aplicação: a Strategy `TitularDoCalendario`, com `CalendarioDoProfissional` e `CalendarioDoCliente`, e os casos de uso `EmitirAssinaturaDoCalendarioUseCase` e `GerarFeedDoCalendarioUseCase`. `MontagemDosEventos` lê cada cadastro uma vez por feed. O `AgendamentoRepository` ganhou `listarDoProfissionalDesde` e `listarDoClienteDesde`.
+- Adaptadores: `CalendarioIcsAdapter`, que implementa o `CalendarioGateway` e escreve o RFC 5545 à mão, mais a persistência JPA da assinatura e o `CalendarioController`.
+- Migração `V1_1795709428698__criar_tabela_assinatura_calendario.sql`.
+- `server.forward-headers-strategy=framework`, para a URL do feed sair com o endereço público atrás de túnel ou da nuvem.
+- TDD em três pares `test:` → `feat:` (domínio, aplicação, adaptadores).
+- Verificação manual no Compose:
+  - o cliente recebe 403 ao tentar assinar a agenda da profissional;
+  - o feed traz 2 eventos (10h e 15h de Brasília saem como 13:00Z e 18:00Z), sem o cancelado, com CRLF, nenhuma linha acima de 75 octetos e UTF-8 válido;
+  - o token antigo responde 404 depois da troca.
+
+**Pendente**
+- Assinar a URL no Google Calendar (Outras agendas, Do URL) e registrar uma captura de tela. O túnel rápido do Cloudflare (`cloudflared tunnel --url`) falhou duas vezes, com 429 e timeout em `api.trycloudflare.com`. O teste fica para depois do deploy em nuvem, com a URL gerada de novo pelo endereço público.
+
+**Fora do plano**
+- Nenhum.
+
+**Métricas do dia**
+- Testes: 743 no `./mvnw verify`, todos passando (eram 690), com as regras de cobertura do JaCoCo atendidas.
+- Cobertura de linhas: 94,6% em `calendario.domain`, 96,9% em `calendario.application.usecase` e 100% nos adaptadores e na configuração do calendário.
+
+**Desafios e soluções**
+- **Autenticar quem o calendário não identifica.**
+  - *Como apareceu:* o Google Calendar e o Outlook buscam a URL sem mandar cabeçalhos, então o `X-Usuario-Id` não serve no feed.
+  - *Solução:* a URL leva um token de 256 bits, e o banco guarda só o SHA-256 dele, então um vazamento da tabela não abre nenhum feed. Token malformado, desconhecido e trocado recebem o mesmo 404. A revogação é emitir outro token, que apaga o anterior.
+- **Trocar o token sem violar a restrição única.**
+  - *Como apareceu:* apagar a assinatura antiga e gravar a nova com os métodos derivados do Spring Data falharia, porque o Hibernate grava os inserts antes dos deletes no flush.
+  - *Solução:* um `delete` em JPQL com `@Modifying`, executado na hora, seguido do `save`, na mesma transação.
+- **iCalendar sem biblioteca.**
+  - *Como apareceu:* o RFC 5545 exige CRLF, escape de `\`, `;`, `,` e quebras, e dobra das linhas acima de 75 octetos. Uma dobra contada em caracteres, e não em bytes, ultrapassa o limite com acentos.
+  - *Solução:* o adaptador anda por code point e soma os octetos em UTF-8 de cada um. O espaço da continuação conta na linha seguinte. O teste confere o limite em bytes e a reversão da dobra.
+- **Fuso e alterações de evento.**
+  - *Como apareceu:* cada estabelecimento tem um fuso, e um reagendamento não pode duplicar o evento na agenda assinada.
+  - *Solução:* horários em UTC, sem `VTIMEZONE`, com o `UID` fixo por agendamento e o `SEQUENCE` igual à versão do agendamento.
+- **URL errada atrás de proxy.**
+  - *Como apareceu:* atrás de túnel ou de plataforma em nuvem, a URL montada pela requisição sairia com o host e o esquema internos do contêiner.
+  - *Solução:* `server.forward-headers-strategy=framework`, que faz valer os cabeçalhos `X-Forwarded-*`.
+- **Porta local ocupada.**
+  - *Como apareceu:* na verificação manual, a porta 8080 respondia 401 com `WWW-Authenticate: Bearer`, mas a API não tem autenticação. Era outro projeto ocupando a porta.
+  - *Solução:* a API do Compose estava na 8082, conforme o `.env`; a verificação foi refeita nela.
+
+**Riscos e decisões**
+- O feed tem os agendamentos que terminam a partir de 30 dias atrás, sem limite à frente. Os cancelados saem do feed, e com isso somem da agenda assinada.
+- O Google Calendar atualiza agendas assinadas a cada várias horas e ignora o `REFRESH-INTERVAL`. Uma alteração não aparece na hora (limitação a registrar no Relatório Técnico).
+- O token não expira. Quem tem a URL lê a agenda até um token novo ser emitido.
+- Na verificação local, os dados de teste foram criados pela API com um script (`curl`). No Git Bash do Windows, o corpo com acentos precisa ir pela entrada padrão; como argumento, chega ao `curl.exe` fora de UTF-8 e a API responde 400.
+
+**Próximo passo**
+- PR da `issue-2811`. Depois, BDD de agendamento, Gatling e deploy, onde o feed será assinado no Google Calendar.
+
+### 28/11 (sábado): feature BDD de agendamento (2ª meta do dia, feita em 26/11, adiantada; branch `issue-2811`)
+
+**Resultado:** Concluído
+**Horas:** a preencher, de 0,5 h planejada
+**Tarefas:** 1 de 1
+**Pronto quando:** atendido. A feature de agendamento roda no `./mvnw verify`, com a disputa pelo mesmo horário comprovada por HTTP
+
+**Realizado**
+- `features/agendamentos/agendamento.feature`, com 4 cenários:
+  - a reserva de um horário livre, que deixa de aparecer em `horarios-livres`;
+  - dois clientes no mesmo horário ao mesmo tempo, com exatamente um 201 e um 409 "O profissional já tem um agendamento nesse horário";
+  - a reserva fora da jornada, recusada com 422 "O horário está fora do atendimento do profissional";
+  - o cancelamento depois da confirmação do gestor, que devolve o horário aos livres para outro cliente reservar.
+- `bdd/AgendamentoSteps` e, num `refactor:` anterior, `bdd/SalaoDoCenario`. Este recebeu o passo do salão, que estava em `AvaliacaoSteps`, e os auxiliares `reservar` e `horariosLivresEm`. `idCriado`, `exigirSucesso` e o novo `exigirRecusa` foram para a base `ApiDaAplicacao`.
+- Commits: `refactor:` (os 9 cenários continuaram verdes) e `test:`. Não há `feat:`, porque o comportamento já existia e estava coberto por testes de unidade, de persistência e de controller. A feature descreve o fluxo de ponta a ponta e o protege.
+
+**Fora do plano**
+- Nenhum.
+
+**Métricas do dia**
+- Testes: 747 no `./mvnw verify`, todos passando, com as regras de cobertura do JaCoCo atendidas.
+- Cenários BDD: 13 (eram 9), todos verdes.
+- A disputa passou em 3 rodadas seguidas. Com o 409 trocado de propósito por 422, o cenário falhou ("expected: 422 but was: 409"); a troca foi desfeita.
+
+**Desafios e soluções**
+- **O mesmo salão em duas features.**
+  - *Como apareceu:* o passo "um salão com a profissional..." vale para todas as features, porque o Cucumber liga passos pelo texto. O estado, porém, ficava em `AvaliacaoSteps`, e uma classe que declara passos não pode ser herdada.
+  - *Solução:* o passo e os ids foram para `SalaoDoCenario`. O Cucumber-Spring cria uma instância por cenário, e os passos de avaliação e de agendamento a recebem por `@Autowired`.
+- **Concorrência de verdade, pela API.**
+  - *Como apareceu:* duas chamadas em sequência só testariam o 409 do segundo pedido, sem disputa.
+  - *Solução:* duas threads presas numa `CyclicBarrier` disparam juntas, cada uma com um cliente. O passo exige exatamente um 201 e a mensagem do 409 no outro.
+- **Comparar horários sem depender do formato.**
+  - *Como apareceu:* os horários livres voltam no fuso do estabelecimento, e o texto do offset pode variar.
+  - *Solução:* o Gherkin e a resposta viram `Instant` antes da comparação.
+
+**Riscos e decisões**
+- Os cenários usam 11/03/2030, uma segunda no futuro distante, com o relógio real. Cada cenário cria um salão novo, então os horários não colidem com os de outras features.
+
+**Próximo passo**
+- Gatling (reservas simultâneas e busca) e o deploy, onde o feed `.ics` será assinado no Google Calendar.
+
+### 28/11 (sábado): testes de carga com Gatling (3ª meta do dia, feita em 26/11, adiantada; branch `issue-2811`)
+
+**Resultado:** Concluído. Os 4 cenários da arquitetura §9.3 ficaram dentro das metas
+**Horas:** a preencher, de 1,5 h planejadas
+**Tarefas:** 1 de 1
+**Pronto quando:** atendido. Em 100 reservas simultâneas no mesmo horário, exatamente uma foi aceita, e os relatórios estão guardados em `artefatos/carga/`
+
+**Realizado**
+- Projeto Maven `agendabeleza-carga/`, com Gatling 3.16.1 e `gatling-maven-plugin` 4.22.3, na Java DSL.
+- Classes comuns:
+  - `ConfiguracaoDaCarga`: protocolo, intensidade por `-Dcarga.*`, metas e injeção das consultas;
+  - `PreparacaoDaCarga`: um salão novo por execução, criado pela API com o `HttpClient` do Java;
+  - `HorariosDistintos`: o feeder das reservas;
+  - `RequisicoesDaAgendaBeleza`: a reserva, usada por duas simulações.
+- Quatro simulações:
+  - `DisputaPeloMesmoHorarioSimulation`: 100 clientes no mesmo horário. A asserção exige 1 sucesso e 99 falhas, e o `after()` confere 1 agendamento no painel do gestor;
+  - `ReservasEmHorariosDistintosSimulation`: 30 reservas por segundo por 60 s;
+  - `BuscaComFiltrosSimulation`: 4 combinações de filtros, incluindo o trecho do nome e a disponibilidade;
+  - `HorariosLivresSimulation`.
+- Os números estão na seção 3.2, e os relatórios HTML, em `artefatos/carga/<cenário>/`. O modo de rodar está em `agendabeleza-carga/README.md`.
+- O teste de concorrência com Testcontainers, a outra parte da meta, já existia desde 23/11 (`ConcorrenciaAgendaTest`).
+- Commit `test:` sem `feat:`, porque nenhum código de produção mudou.
+
+**Fora do plano**
+- Os cenários de horários livres e de reservas distintas eram opcionais no planejamento (só reservas simultâneas e busca) e entraram por decisão do autor, cobrindo os 4 da arquitetura.
+
+**Métricas do dia**
+- Busca: 12.270 requisições, p95 24 ms. Horários livres: 12.178, p95 32 ms. Reservas distintas: 1.800 aceitas, p95 32 ms. Disputa: 1 × 201 e 99 × 409. Nenhum erro inesperado.
+- Outbox depois das rodadas: 7.304 notificações, 702 enviadas e 2.950 confirmações pendentes (ver Riscos).
+- `./mvnw verify` da API não mudou: 747 testes, todos passando.
+
+**Desafios e soluções**
+- **Gatling e Spring Boot 4 no mesmo classpath.**
+  - *Como apareceu:* o Boot 4 gerencia as versões de Netty e Jackson, que o Gatling também usa. Juntá-los nos testes da API arriscaria quebrar os dois, e esse risco já estava listado no planejamento §7.
+  - *Solução:* um projeto Maven separado, sem o parent do Boot, executado pelo mesmo `mvnw` da API (`-f agendabeleza-carga/pom.xml`). O `verify` e o CI da API não mudaram.
+- **Reservas válidas em volume.**
+  - *Como apareceu:* 1.800 reservas precisam de 1.800 horários livres diferentes. Concentrar tudo num profissional mediria só a fila da trava dele.
+  - *Solução:* a preparação cria 10 profissionais com jornada de 16 horas todos os dias e um serviço de 15 minutos. O feeder alterna o profissional a cada reserva, a partir de 06/01/2031.
+- **Todas as reservas recusadas com 400 na primeira execução.**
+  - *Como apareceu:* o `toString()` do `OffsetDateTime` omite os segundos quando são zero (`2031-01-06T10:00-03:00`), e a API só aceita o início com segundos.
+  - *Solução:* um único formatador com segundos (`HorariosDistintos.inicio`), usado pelas duas simulações de reserva. A conferência no `after()` da disputa encerrou o build com falha nessa primeira execução, o que mostrou que a verificação final funciona.
+- **Provar "exatamente um" com o Gatling.**
+  - *Como apareceu:* o Gatling conta sucessos e falhas por requisição, mas não conhece a regra de negócio.
+  - *Solução:* duas verificações. A primeira aceita 201 ou 409, para que um 500 apareça com outra mensagem. A segunda exige 201, e assim cada 409 conta como falha esperada. As asserções exigem 1 sucesso e 99 falhas, e o `after()` confere no painel que só um agendamento foi gravado.
+
+**Riscos e decisões**
+- Na disputa, o 201 saiu em 143 ms, e os 409 tiveram mediana de 820 ms e máximo de 1.235 ms. As 100 reservas do mesmo profissional entram em fila na trava consultiva (`pg_advisory_xact_lock`), e cada uma espera a anterior terminar a transação. É a serialização projetada para reserva × bloqueio. Com profissionais diferentes, a fila some, como mostra o p95 de 32 ms das reservas distintas.
+- A busca por trecho do nome, sem índice (risco anotado em 26/11), ficou em p95 de 24 ms. Com o volume do projeto, o `LIKE '%trecho%'` não é gargalo.
+- A carga foi reduzida para o ambiente local (seção 5), e os números valem para ele. A nuvem gratuita não é medida.
+- **A vazão da outbox ficou abaixo da carga de reservas.** Cada reserva grava 4 notificações (2 confirmações e 2 lembretes). As rodadas de 26/11 deixaram 7.304 na outbox. Minutos depois, só 702 confirmações tinham saído, e 2.950 continuavam pendentes; os 3.652 lembretes são para 2031. O job envia 50 por rodada, com intervalo de 1 minuto (cerca de 0,8 e-mail por segundo), e 30 reservas por segundo geram 60 confirmações por segundo. A reserva não é afetada, porque a outbox desacopla o envio, mas a confirmação atrasa. Ajustes possíveis, fora do escopo agora: lote maior, intervalo menor ou envio em paralelo, este último exigindo `SKIP LOCKED` para não duplicar e-mails. Fica como limitação no Relatório Técnico.
+- Não há README na raiz do repositório. O item de 29/11 que manda testar o README em um clone limpo depende de escrevê-lo antes.
+
+**Próximo passo**
+- Deploy na plataforma gratuita com o perfil `production`. Depois, assinar o feed `.ics` no Google Calendar pelo endereço público.

@@ -1,5 +1,6 @@
 package br.com.fiap.agendabeleza.api.agendamentos.application.port;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,5 +36,11 @@ public interface AgendamentoRepository {
 
 	/** Agenda do painel do estabelecimento, em ordem de início. */
 	List<Agendamento> listarDoEstabelecimento(FiltroDaAgenda filtro);
+
+	/** Todos os status do profissional que terminam depois de {@code desde}, em ordem de início (feed .ics). */
+	List<Agendamento> listarDoProfissionalDesde(UUID profissionalId, Instant desde);
+
+	/** Todos os status do cliente que terminam depois de {@code desde}, em ordem de início (feed .ics). */
+	List<Agendamento> listarDoClienteDesde(UUID clienteId, Instant desde);
 
 }

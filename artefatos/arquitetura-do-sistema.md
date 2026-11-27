@@ -107,7 +107,7 @@ As regras ficam em `src/test/java/br/com/fiap/agendabeleza/api/arquitetura/Regra
 | `avaliacoes` | Avaliações e notas agregadas | 4 |
 | `busca` | Consulta com filtros combinados | 5 |
 | `notificacoes` | Outbox, confirmações e lembretes | 3b |
-| `calendario` | OAuth2 e sincronização | 7 |
+| `calendario` | Feed iCalendar (`.ics`) por URL secreta, para profissional e cliente | 7 |
 | `compartilhado` | Exceções base, eventos e tipos comuns | Apoio |
 
 ### 4.4 Estrutura de pacotes
@@ -165,14 +165,15 @@ Prefixo `/api/v1`. A documentação é gerada pelo springdoc em `/swagger-ui.htm
 
 ### 5.1 Autenticação e calendário
 
+As rotas `/auth/*` (JWT) e `/integracoes/google/*` (OAuth2) saíram do escopo em 20/11 (planejamento, seção 2.1). O usuário chega no cabeçalho `X-Usuario-Id`, e a integração com calendários é um feed iCalendar que o Google Calendar e o Outlook assinam por URL (implementado em 26/11):
+
 | Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| POST | `/auth/registro` | Público | Cria usuário |
-| POST | `/auth/login` | Público | Retorna JWT |
-| GET | `/integracoes/google/autorizar` | Autenticado | Retorna a URL de consentimento do Google |
-| GET | `/integracoes/google/callback` | Público, valida `state` | Conclui o OAuth2 |
-| GET | `/integracoes/google` | Autenticado | Consulta o status da integração |
-| DELETE | `/integracoes/google` | Autenticado | Revoga a integração |
+| POST | `/calendario/assinaturas/profissionais/{profissionalId}` | Gestor do estabelecimento ou o próprio profissional | Gera a URL secreta da agenda do profissional. Responde 201 com `{ url, webcal }` e a mesma URL no `Location`; 400 sem `X-Usuario-Id`, 403 para os demais usuários e 404 para profissional inexistente |
+| POST | `/calendario/assinaturas/cliente` | O cliente do `X-Usuario-Id` | Gera a URL secreta dos horários do cliente, em todos os estabelecimentos. Responde 201 com `{ url, webcal }`; 400 sem `X-Usuario-Id` |
+| GET | `/calendario/feeds/{token}.ics` | Público (o token é a credencial) | Feed `text/calendar; charset=utf-8`. Responde 404, sem diferenciar, para token malformado, desconhecido ou já trocado |
+
+Cada `POST` gera um token novo e invalida o anterior do mesmo titular: é assim que um link vazado é revogado. O token tem 256 bits aleatórios em Base64 para URL (43 caracteres), e o banco guarda só o SHA-256 dele. O feed traz os agendamentos que terminam a partir de 30 dias atrás, sem limite à frente e sem os cancelados (um evento que some do feed some da agenda assinada). `AGENDADO` sai como `STATUS:TENTATIVE`; confirmado, concluído e não comparecimento, como `CONFIRMED`. Os horários vão em UTC, sem `VTIMEZONE`, e cada calendário os mostra no fuso de quem assina. O `UID` é fixo por agendamento e o `SEQUENCE` é a versão dele, para que um reagendamento troque o evento em vez de duplicá-lo. No feed do profissional, o título é o serviço; no do cliente, "serviço em estabelecimento". A URL é montada a partir do endereço que o cliente usou: atrás de túnel ou da plataforma em nuvem, `server.forward-headers-strategy=framework` faz valer os cabeçalhos `X-Forwarded-*`.
 
 ### 5.2 Estabelecimentos e profissionais
 
@@ -337,37 +338,36 @@ sequenceDiagram
 - O fluxo inteiro é coberto por `NotificacoesPorEmailTest`: casos de uso reais, outbox no PostgreSQL do Testcontainers, `NotificacaoSmtpAdapter` e SMTP do GreenMail. As rodadas do job são chamadas com relógio fixo para fazer o lembrete vencer.
 - O envio é "pelo menos uma vez": se a task cair depois de enviar e antes de atualizar o status, o e-mail pode se repetir. Esse risco é aceitável para este domínio.
 
-### 6.3 Sincronização com Google Calendar
+### 6.3 Assinatura do calendário (feed `.ics`)
+
+O fluxo original, com OAuth2 e um job que gravava eventos pela API do Google, foi trocado em 20/11 por um feed que o calendário busca sozinho (planejamento, seção 2.1). A API não chama nenhum serviço externo: quem busca é o Google ou o Outlook.
 
 ```mermaid
 sequenceDiagram
-    actor U as Usuário
+    actor U as Profissional ou cliente
     participant API as API
-    participant G as Google
-    participant Job as Job de calendário
     participant DB as PostgreSQL
+    participant G as Google Calendar ou Outlook
 
-    U->>API: GET /integracoes/google/autorizar
-    API-->>U: URL de consentimento com state
-    U->>G: Autoriza o acesso
-    G->>API: callback com code e state
-    API->>G: Troca code por tokens
-    API->>DB: Grava tokens cifrados
-
-    Note over Job,DB: Quando um agendamento muda
-    Job->>DB: Busca eventos com acao_pendente
-    Job->>G: Cria, atualiza ou remove o evento
-    Job->>DB: Grava id_evento_externo e acao_pendente = NENHUMA
+    U->>API: POST /calendario/assinaturas/... (X-Usuario-Id)
+    API->>API: Confere o acesso (TitularDoCalendario)
+    API->>DB: Apaga a assinatura anterior e grava o SHA-256 do token novo
+    API-->>U: 201 { url, webcal }
+    U->>G: Cola a URL em "Outras agendas, Do URL"
+    loop A cada atualização do calendário
+        G->>API: GET /calendario/feeds/{token}.ics
+        API->>DB: Assinatura pelo hash e agendamentos do titular
+        API-->>G: text/calendar (CalendarioGateway → CalendarioIcsAdapter)
+    end
 ```
 
-Uma falha no Google nunca desfaz a reserva. Se o Google recusar o refresh token, a integração passa para `REVOGADA`.
+O que muda entre profissional e cliente (quem pode assinar, quais agendamentos entram e os títulos) fica na estratégia `TitularDoCalendario`, com `CalendarioDoProfissional` e `CalendarioDoCliente`. A emissão e a geração do feed são as mesmas para os dois papéis. O `CalendarioGateway` isola o formato: o núcleo monta um `FeedDoCalendario`, e o `CalendarioIcsAdapter` escreve o RFC 5545 à mão, com escape de texto, dobra de linha em 75 octetos e CRLF. O feed pede atualização a cada hora (`REFRESH-INTERVAL` e `X-PUBLISHED-TTL`). O Outlook respeita; o Google Calendar decide sozinho, em geral a cada várias horas, então uma alteração não aparece na hora na agenda assinada.
 
 ## 7. Segurança
 
 - **Autenticação:** JWT assinado, com expiração curta. Senhas em BCrypt.
 - **Autorização:** papéis no `SecurityConfig` e verificação de posse nos casos de uso, como "o gestor é dono deste estabelecimento".
-- **OAuth2:** `state` assinado e com validade, vinculado ao usuário, para evitar CSRF no callback. Escopo mínimo: `https://www.googleapis.com/auth/calendar.events`.
-- **Tokens do Google:** cifrados com AES-GCM, com chave guardada fora do banco.
+- **Feed do calendário (no lugar do OAuth2, cortado em 20/11):** a URL leva um token de 256 bits gerado com `SecureRandom`, e o banco guarda só o SHA-256 dele, então um vazamento da tabela não abre nenhum feed. Token malformado, desconhecido e trocado recebem o mesmo 404, e o `toString()` do token não o expõe em logs. Não há expiração; a revogação é emitir um token novo.
 - **Segredos:** variáveis de ambiente no local e Secrets Manager na AWS. Nada é versionado no Git.
 - **Entradas:** Bean Validation nos DTOs. Fotos limitadas por tipo e tamanho.
 
@@ -408,30 +408,34 @@ As features ficam em `src/test/resources/features/<modulo>/`, escritas em Gherki
 | Feature | Cenários | Desde |
 |---|---|---|
 | `estabelecimentos/cadastro_estabelecimento.feature` | Cadastro com horários e consulta pública, serviço, foto, dados inválidos (400 e 422) e alteração por outro usuário (403) | 22/11 |
+| `avaliacoes/avaliacao_atendimento.feature` | Avaliação de atendimento concluído com as notas médias atualizadas, e segunda avaliação recusada (422) | 25/11 |
+| `agendamentos/agendamento.feature` | Reserva que tira o horário dos livres, dois clientes no mesmo horário ao mesmo tempo (exatamente um 201 e um 409), reserva fora da jornada (422) e cancelamento que devolve o horário a outro cliente | 26/11 |
 
-Exemplo previsto para os agendamentos:
+O salão dos cenários de avaliação e de agendamento (gestor, serviço "Corte" e uma profissional que atende às segundas) fica em `bdd/SalaoDoCenario`. Os passos das duas features o recebem por `@Autowired`, já que uma classe que declara passos não pode ser herdada no Cucumber. A base `ApiDaAplicacao` reúne os auxiliares `idCriado`, `exigirSucesso` e `exigirRecusa` (status e `detail` do problem+json).
+
+O cenário da disputa:
 
 ```gherkin
-# language: pt
-Funcionalidade: Agendamento de serviços
-
-  Cenário: Dois clientes tentam reservar o mesmo horário
-    Dado um profissional com horário livre em "2026-12-10T14:00:00-03:00"
-    Quando dois clientes solicitam esse horário ao mesmo tempo
-    Então um agendamento é criado com status 201
-    E a outra solicitação recebe status 409
+  Cenário: Dois clientes tentam reservar o mesmo horário ao mesmo tempo
+    Quando dois clientes solicitam o horário de "2030-03-11T14:00:00-03:00" ao mesmo tempo
+    Então exatamente uma reserva é criada com status 201
+    E a outra é recusada com status 409 e a mensagem "O profissional já tem um agendamento nesse horário"
 ```
+
+As duas reservas partem de duas threads presas numa `CyclicBarrier` e chegam juntas ao servidor real, por HTTP. Ele é a mesma prova do `ConcorrenciaAgendaTest`, agora de ponta a ponta.
 
 ### 9.3 Cenários de carga
 
-As metas abaixo são próprias do projeto, já que o enunciado não define números. Elas podem ser ajustadas após a primeira medição em 23/11.
+As metas são próprias do projeto, já que o enunciado não define números. A carga original (200 usuários por 5 minutos e 100 reservas por segundo por 2 minutos) foi pensada para a AWS. Em 26/11 ela foi revista para o Docker Compose local do notebook, onde a medição é feita. Os tempos-meta não mudaram.
 
-| Cenário | Carga | Meta |
-|---|---|---|
-| Busca com filtros | 200 usuários simultâneos por 5 minutos | p95 < 500 ms, erros < 1% |
-| Consulta de horários livres | 200 usuários simultâneos por 5 minutos | p95 < 500 ms, erros < 1% |
-| Reservas em horários distintos | 100 reservas por segundo durante 2 minutos | p95 < 800 ms, erros < 1% |
-| Disputa pelo mesmo horário | 100 requisições simultâneas | Exatamente um 201 e 99 respostas 409 |
+| Cenário | Simulação | Carga | Meta |
+|---|---|---|---|
+| Busca com filtros | `BuscaComFiltrosSimulation` | 100 usuários simultâneos por 2 minutos, com rampa de 10 s e pausa de 1 s | p95 < 500 ms, erros < 1% |
+| Consulta de horários livres | `HorariosLivresSimulation` | 100 usuários simultâneos por 2 minutos, com rampa de 10 s e pausa de 1 s | p95 < 500 ms, erros < 1% |
+| Reservas em horários distintos | `ReservasEmHorariosDistintosSimulation` | 30 reservas por segundo durante 1 minuto (1.800) | p95 < 800 ms, erros < 1% |
+| Disputa pelo mesmo horário | `DisputaPeloMesmoHorarioSimulation` | 100 requisições simultâneas | Exatamente um 201 e 99 respostas 409 |
+
+As simulações ficam no projeto Maven separado `agendabeleza-carga/`, com Gatling 3.16 na Java DSL e sem o parent do Spring Boot, para não misturar as versões de Netty e Jackson do Boot 4 com as do Gatling. Elas rodam contra a API no ar (`agendabeleza-api/mvnw -f agendabeleza-carga/pom.xml gatling:test -Dgatling.simulationClass=...`), fora do CI; o modo de rodar está em `agendabeleza-carga/README.md`. Antes da carga, cada simulação cria pela API um salão novo (`PreparacaoDaCarga`), com funcionamento e jornada todos os dias das 06:00 às 22:00 e serviço de 15 minutos. As metas são asserções do Gatling, e uma meta não atingida termina o Maven com falha. Na disputa, uma verificação final no painel do gestor exige um único agendamento gravado. Os relatórios HTML da medição de referência estão em `artefatos/carga/`, e os números, no relatório de desenvolvimento, seção 3.2.
 
 ## 10. CI/CD
 
@@ -504,7 +508,7 @@ flowchart TB
 | ADR-04 | `FOR UPDATE SKIP LOCKED` nos jobs | Evita processamento duplicado entre tasks | Implementado em SQL nativo no adaptador |
 | ADR-05 | Entidades de domínio separadas das JPA | Independência de framework, critério central da avaliação | Mais classes e mapeadores |
 | ADR-06 | Busca em SQL com `pg_trgm` em vez de Elasticsearch | Atende ao requisito com menos componentes | Menos recursos de relevância textual |
-| ADR-07 | Google por trás de `CalendarioGateway` | Testes com WireMock e espaço para Outlook | Apenas Google será implementado nesta entrega |
+| ADR-07 | `CalendarioGateway` gera um feed iCalendar que o Google Calendar e o Outlook assinam por URL secreta (revisto em 20/11 e implementado em 26/11; antes: OAuth2 com a API do Google) | Atende aos dois calendários sem OAuth, sem tokens de terceiros e sem projeto no Google Cloud; o gerador é testado sem servidor externo | A atualização da agenda assinada depende do calendário (horas no Google); quem tem a URL lê a agenda, e a revogação é emitir um token novo |
 | ADR-08 | ECS Fargate em vez de EC2 ou EKS | Citado no enunciado, sem administrar servidores | Tem custo, controlado com alerta de orçamento e `terraform destroy` |
 
 ## 13. Requisitos de avaliação x arquitetura
