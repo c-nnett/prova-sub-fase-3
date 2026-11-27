@@ -1,0 +1,123 @@
+name: Deploy
+
+# Publica na VPS a imagem que o workflow Imagem acabou de gerar na master, depois que o CI do mesmo commit passar.
+# O Terraform roda na própria VPS (infra/terraform/aplicar.sh), onde ficam o estado e o terraform.tfvars; aqui só
+# vão os arquivos .tf, por SSH, com o usuário deploy. Manual: Actions → Deploy → Run workflow, com ou sem versão.
+
+on:
+  workflow_run:
+    workflows: [Imagem]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Sha curto da imagem (vazio reaplica a versão em uso)"
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publicar:
+    name: publicar
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ vars.URL_PUBLICA }}
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DIRETORIO_NA_VPS: /opt/agendabeleza/terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.COMMIT }}
+
+      - name: Versão
+        id: versao
+        env:
+          INFORMADA: ${{ inputs.versao }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ]; then
+            valor=${COMMIT:0:7}
+          else
+            valor=$INFORMADA
+          fi
+          if ! printf '%s' "$valor" | grep -Eq '^([0-9a-f]{7,40})?$'; then
+            echo "::error::Versão inválida: use o sha curto do commit (7 caracteres hexadecimais) ou deixe vazio."
+            exit 1
+          fi
+          echo "valor=$valor" >> "$GITHUB_OUTPUT"
+
+      # O Imagem e o CI rodam em paralelo no mesmo push: só publica se o CI daquele commit também passar.
+      - name: Espera o CI do commit
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tentativa in $(seq 1 60); do
+            situacao=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$COMMIT" \
+              --event push --limit 1 --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"')
+            echo "CI: ${situacao:-ainda não iniciado}"
+            case "$situacao" in
+              "completed success") exit 0 ;;
+              completed*) echo "::error::O CI do commit $COMMIT falhou; nada foi publicado."; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "::error::O CI do commit $COMMIT não terminou em 30 minutos."
+          exit 1
+
+      - name: Acesso SSH
+        env:
+          CHAVE: ${{ secrets.VPS_CHAVE_SSH }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          HOST: ${{ secrets.VPS_HOST }}
+          PORTA: ${{ secrets.VPS_PORTA }}
+          USUARIO: ${{ secrets.VPS_USUARIO }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host vps
+            HostName $HOST
+            Port $PORTA
+            User $USUARIO
+            IdentityFile ~/.ssh/deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+      # Só a configuração vai para a VPS: o estado e o terraform.tfvars de lá nunca são enviados nem sobrescritos.
+      - name: Envia a configuração do Terraform
+        run: |
+          cd infra/terraform
+          tar czf - *.tf Caddyfile.tftpl .terraform.lock.hcl aplicar.sh \
+            | ssh vps "tar xzf - -C $DIRETORIO_NA_VPS && chmod 700 $DIRETORIO_NA_VPS/aplicar.sh"
+
+      - name: Terraform apply na VPS
+        env:
+          VERSAO: ${{ steps.versao.outputs.valor }}
+        run: ssh vps "$DIRETORIO_NA_VPS/aplicar.sh $VERSAO"
+
+      - name: Smoke test
+        env:
+          URL: ${{ vars.URL_PUBLICA }}
+        run: |
+          curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "$URL/actuator/health" | tee saude.json
+          grep -q '"status":"UP"' saude.json
+
+      - name: Remove a chave
+        if: always()
+        run: rm -f ~/.ssh/deploy
