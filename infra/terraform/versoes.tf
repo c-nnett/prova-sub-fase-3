@@ -1,4 +1,4 @@
-# Deploy da AgendaBeleza API numa VPS Linux da Hostinger que já existe. O Terraform não cria a máquina: fala com o
+# Deploy da AgendaBeleza API numa VPS Linux da HostGator que já existe. O Terraform não cria a máquina: fala com o
 # Docker dela por SSH e descreve os contêineres, como uma task definition do ECS (arquitetura, seção 11).
 terraform {
   required_version = ">= 1.9"

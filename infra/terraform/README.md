@@ -1,6 +1,6 @@
 # Deploy na VPS (Terraform)
 
-Publica a AgendaBeleza API numa VPS Linux da Hostinger que já existe. O Terraform não cria a máquina: fala com o
+Publica a AgendaBeleza API numa VPS Linux da HostGator que já existe. O Terraform não cria a máquina: fala com o
 Docker dela por SSH (provider `kreuzwerker/docker`) e descreve os contêineres, como uma task definition do ECS
 descreveria na AWS.
 
@@ -26,12 +26,13 @@ Internet ──443──▶ caddy (HTTPS Let's Encrypt) ──▶ agendabeleza-a
 
 ## Pré-requisitos (uma vez)
 
-1. **Docker na VPS:** template "Ubuntu com Docker" da Hostinger, ou `curl -fsSL https://get.docker.com | sh`.
+1. **Docker na VPS:** já instalado na VPS da HostGator; se faltar, `curl -fsSL https://get.docker.com | sh`.
 2. **SSH por chave**, com um usuário do grupo `docker` (`sudo usermod -aG docker <usuario>`). Do seu computador,
    `ssh usuario@ip docker info` precisa funcionar sem pedir senha.
-3. **Portas 80 e 443 livres e liberadas** no firewall do painel da Hostinger e no `ufw`. Nada mais pode estar usando
+3. **Portas 80 e 443 livres e liberadas** no firewall da VPS (`ufw` ou `firewalld`). Nada mais pode estar usando
    essas portas na VPS.
-4. **Domínio apontando para a VPS:** o padrão da Hostinger (`srvNNNNNN.hstgr.cloud`) serve.
+4. **Domínio apontando para a VPS:** um registro DNS `A` com o IP da VPS (por exemplo `api.seudominio.com.br`). O
+   Let's Encrypt não emite certificado para IP puro.
 5. **Imagem publicada:** o workflow `.github/workflows/imagem.yml` publica `ghcr.io/c-nnett/agendabeleza-api:<sha>`
    a cada push. Na primeira vez, deixe o pacote público em GitHub → Packages → agendabeleza-api → Package settings.
 6. **Terraform 1.9 ou mais novo** no seu computador.

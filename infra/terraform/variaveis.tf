@@ -10,7 +10,7 @@ variable "chave_ssh" {
 }
 
 variable "dominio_da_api" {
-  description = "Domínio que aponta para a VPS, por exemplo o padrão da Hostinger (srvNNNNNN.hstgr.cloud)."
+  description = "Domínio que aponta para a VPS, com registro A para o IP da VPS, por exemplo api.seudominio.com.br."
   type        = string
 }
 
