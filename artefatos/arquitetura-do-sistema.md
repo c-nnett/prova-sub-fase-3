@@ -446,14 +446,17 @@ flowchart LR
     push --> mudou{"Mudou agendabeleza-api/?"}
     mudou -->|"sim"| image["Workflow Imagem: build do alvo production"]
     image --> ghcr["GHCR: agendabeleza-api com a tag do commit"]
-    ghcr -.->|"terraform apply"| vps["VPS"]
+    ghcr --> deploy{"master e CI do commit verde?"}
+    verify -.-> deploy
+    deploy -->|"sim"| vps["Deploy: ssh deploy@VPS, aplicar.sh com o sha, smoke test"]
 ```
 
-Revisto em 27/11/2026. Dois workflows:
+Revisto em 27/11/2026. Três workflows:
 - `ci.yml` roda `./mvnw -B verify` e, com `SONAR_TOKEN`, a análise no SonarCloud.
-- `imagem.yml` publica a imagem `production` no GitHub Container Registry, com a tag do commit e a da branch.
+- `imagem.yml` publica a imagem `production` no GitHub Container Registry, com a tag do commit e a da branch. O pacote é público, e a VPS baixa a imagem sem credencial.
+- `deploy.yml` roda quando o `Imagem` termina com sucesso na `master`. Ele espera o CI do mesmo commit e para se o CI falhar. Depois envia por SSH os arquivos `.tf` para a VPS e roda lá `infra/terraform/aplicar.sh <sha>`, com o Terraform num contêiner e o estado guardado na própria VPS. No fim, confere `/actuator/health` pelo endereço público. Para mudanças só de infraestrutura, ou para voltar atrás, ele também pode ser disparado manualmente, com ou sem o sha.
 
-O deploy não é automático: o autor roda o `terraform apply` com a tag escolhida (seção 11). O pacote do GHCR é público, e a VPS baixa a imagem sem credencial.
+O Actions entra com um usuário `deploy` do grupo `docker` e uma chave só dele. A chave do servidor fica fixada em `VPS_KNOWN_HOSTS`, e os secrets ficam no environment `production`.
 
 ## 11. Deploy
 
@@ -469,7 +472,7 @@ Revisto em 27/11/2026: a nuvem é uma VPS Linux da HostGator que o autor já tin
 | Fotos | URLs no cadastro | URLs no cadastro |
 | E-mail | Mailpit | Mailpit interno; a interface só abre por túnel SSH |
 | HTTPS | Não | Caddy com Let's Encrypt, o único contêiner com portas públicas (80 e 443) |
-| Segredos | Arquivo `.env` fora do Git | Senha do banco gerada por `random_password`, guardada só no estado do Terraform, fora do Git |
+| Segredos | Arquivo `.env` fora do Git | Senha do banco gerada por `random_password` e guardada só no estado do Terraform, na VPS; chave SSH do deploy nos secrets do GitHub |
 | Logs | Console | `docker logs agendabeleza-api`, sem cores |
 | Endereço | `http://localhost:8082` | `https://143-95-161-158.sslip.io` |
 
@@ -496,7 +499,8 @@ flowchart LR
 - **Por que o Caddy:** ele emite e renova o certificado sozinho, e a configuração é um template versionado (`Caddyfile.tftpl`) aplicado pelo Terraform. Em 27/11 o autor cogitou httpd e Nginx Proxy Manager. O httpd exigiria `mod_md` ou certbot. O NPM é configurado por interface fora do Git e expõe um painel na porta 81.
 - **Atrás do proxy:** com `server.forward-headers-strategy=framework`, a API monta as URLs, como a do feed `.ics`, com `https://` e o domínio público.
 - **Memória:** a VPS tem 1,7 GB e não tem swap. A API fica limitada a 768 MB (a JVM usa 75%) e usou cerca de 360 MB em repouso.
-- **Atualizar, voltar atrás e encerrar:** `terraform apply -var versao_da_imagem=<sha>` recria só a API; `terraform destroy` remove tudo, inclusive o banco (`infra/terraform/README.md`).
+- **Estado na VPS:** `terraform.tfstate` e `terraform.tfvars` ficam em `/opt/agendabeleza/terraform`, com permissão 600 e fora do Git. Foram migrados da máquina do autor em 27/11, e o `plan` na VPS deu "No changes".
+- **Atualizar, voltar atrás e encerrar:** o deploy de cada versão é automático (seção 10), e `aplicar.sh <sha>` recria só a API; `terraform destroy` remove tudo, inclusive o banco (`infra/terraform/README.md`).
 
 ## 12. Decisões arquiteturais
 

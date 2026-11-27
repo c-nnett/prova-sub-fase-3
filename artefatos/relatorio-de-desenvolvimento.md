@@ -602,3 +602,27 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - Assinar o feed `.ics` no Google Calendar pelo endereço público. Depois, Javadoc, revisão do Swagger e o Relatório Técnico (29/11).
+
+### 28/11 (sábado): deploy automático pelo GitHub Actions (fora do plano, feito em 27/11; `master`)
+
+**Resultado:** a preencher, depois do primeiro deploy pelo Actions
+**Horas:** a preencher (não planejado)
+**Tarefas:** fora do plano
+**Pronto quando:** um push na `master` que muda a API chega sozinho à VPS, e o smoke test passa
+
+**Realizado**
+- `infra/terraform/aplicar.sh`: roda o Terraform na VPS num contêiner (`hashicorp/terraform:1.17.2`) com o usuário de quem chama, e sem instalar nada no host. Sem versão, reaplica a que está no ar.
+- Variável `docker_host`: na VPS, o provider fala com o socket local; fora dela, continua por SSH.
+- `lifecycle { ignore_changes = [memory_swap] }` na API: o Docker preenche o swap com o dobro do limite de memória, e o `plan` acusava essa diferença em todo deploy.
+- `.terraform.lock.hcl` com os hashes de Linux e Windows.
+- `.github/workflows/deploy.yml`: dispara depois do `Imagem` na `master`, espera o CI do mesmo commit, envia os `.tf`, roda `aplicar.sh <sha>` e faz o smoke test. Também pode ser disparado manualmente, com a versão validada como sha.
+- Na VPS:
+  - usuário `deploy` no grupo `docker`, com uma chave ed25519 só do Actions;
+  - `/opt/agendabeleza/terraform` com permissão 700;
+  - estado e `terraform.tfvars` migrados da máquina do autor. O `plan` na VPS deu "No changes", e o estado local foi renomeado para `terraform.tfstate.migrado-27-11`.
+
+**Riscos e decisões**
+- Decisões do autor: estado na própria VPS, sem backend de terceiros, e um usuário `deploy` dedicado, sem a chave de root no GitHub.
+- O grupo `docker` equivale a root na VPS. Quem tiver a chave do Actions controla a máquina. A chave fica só no environment `production`.
+- Um push que muda só a infraestrutura não gera imagem, e por isso não dispara o deploy. Nesse caso, é preciso rodar o workflow manualmente.
+- O estado só existe na VPS. Se a VPS for perdida, perdem-se também os dados, porque o banco está nela.
