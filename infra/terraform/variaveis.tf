@@ -1,5 +1,5 @@
 variable "acesso_ssh" {
-  description = "Usuário e endereço da VPS, no formato usuario@ip. O usuário precisa estar no grupo docker."
+  description = "Usuário e endereço da VPS, no formato usuario@ip ou usuario@ip:porta (SSH fora da 22). O usuário precisa estar no grupo docker."
   type        = string
 }
 

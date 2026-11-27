@@ -110,6 +110,7 @@ Cortes de escopo (seção 7 do planejamento), tarefas remanejadas e metas ajusta
 
 | Data | Mudança | Motivo | Impacto |
 |---|---|---|---|
+| 26/11 | Deploy na VPS da HostGator que o autor já tinha (Terraform com o provider Docker por SSH e Caddy), no lugar da plataforma gratuita. Em 27/11, sem domínio próprio, o endereço passou a ser `143-95-161-158.sslip.io` | Sem custo nem hibernação, e com infraestrutura como código | PostgreSQL em contêiner, e não gerenciado; instância única; backup manual |
 | 26/11 | Carga dos testes Gatling revista: consultas com 100 usuários por 2 min (eram 200 por 5 min) e reservas a 30/s por 1 min (eram 100/s por 2 min). Tempos-meta mantidos | A medição é no Docker Compose local do notebook, que divide CPU com outro projeto, e não mais na AWS | Os números valem para o ambiente local; a nuvem gratuita não é medida |
 
 ## 6. Registros diários
@@ -553,3 +554,51 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 **Próximo passo**
 - Deploy na plataforma gratuita com o perfil `production`. Depois, assinar o feed `.ics` no Google Calendar pelo endereço público.
+
+### 28/11 (sábado): deploy na nuvem (4ª meta do dia, feita em 26 e 27/11, adiantada; `master`)
+
+**Resultado:** Parcial. A API está no ar com HTTPS; falta assinar o feed `.ics` no Google Calendar
+**Horas:** a preencher, de 2 h planejadas
+**Tarefas:** 1 de 1, com a assinatura no Google pendente
+**Pronto quando:** atendido. O Swagger abre pelo endereço público (`https://143-95-161-158.sslip.io/swagger-ui.html`), e a regra de exatamente uma reserva aceita já tinha sido comprovada no Gatling
+
+**Realizado**
+- 26/11, na `issue-2811` (PR #10):
+  - `ded5c1d` chore: `.dockerignore`, que reduziu o contexto de build de mais de 300 MB para 70 KB;
+  - `6525d28` feat: perfil `production`, com logs INFO e sem detalhes na saúde;
+  - `a4cfef9` ci: workflow `imagem.yml`, que publica a imagem `production` no GHCR com a tag do commit;
+  - `3399ece` chore: `infra/terraform/`, com o provider `kreuzwerker/docker` por SSH e os contêineres `postgres`, `mailpit`, `agendabeleza-api` e `caddy`. A senha do banco é gerada por `random_password`.
+- 27/11, na `master`:
+  - `62ac540` doc: o provedor é a HostGator, e não a Hostinger;
+  - o `terraform apply` criou 13 recursos na VPS (AlmaLinux 9.9, Docker 29.10.1), com a imagem `f3485cf`.
+- Verificação pelo endereço público:
+  - `/actuator/health` responde `UP`, com certificado Let's Encrypt válido, e HTTP redireciona para HTTPS (308);
+  - o Swagger responde 200;
+  - o mesmo fluxo de ponta a ponta do Compose passou com 39 de 39 verificações (201, 400, 403, 404, 409 e 422);
+  - o feed `.ics` sai com a URL `https://143-95-161-158.sslip.io/...` e responde `text/calendar`, o que confirma que a API monta os endereços certos atrás do proxy.
+
+**Pendente**
+- Assinar o feed no Google Calendar (Outras agendas, Do URL) e registrar uma captura de tela.
+
+**Fora do plano**
+- Antes do apply, o autor cogitou trocar o Caddy por httpd ou Nginx Proxy Manager, e decidiu manter o Caddy (arquitetura §11.2).
+
+**Métricas do dia**
+- Memória em repouso na VPS: API com 361 MB de 768 MB, Caddy com 65 MB, PostgreSQL com 55 MB e Mailpit com 16 MB. Ficam disponíveis cerca de 825 MB de 1,7 GB.
+- Antes do push, o `./mvnw clean verify` passou: 737 testes nos relatórios do Surefire e ArchUnit 8 de 8.
+
+**Desafios e soluções**
+- **HTTPS sem domínio.**
+  - *Como apareceu:* a VPS só tem IP, e o Let's Encrypt não emite o certificado comum para IP. Sem HTTPS, o Google Calendar pode recusar o feed.
+  - *Solução:* o nome `143-95-161-158.sslip.io`, de um DNS público e gratuito que devolve o IP embutido no nome. Só o `terraform.tfvars` mudou, e o Caddy emitiu o certificado na primeira subida.
+- **Pouca memória.**
+  - *Como apareceu:* a VPS tem 1,7 GB de RAM, sem swap, e o limite padrão da API era 1024 MB.
+  - *Solução:* `memoria_da_api_em_mb = 768`, por decisão do autor.
+
+**Riscos e decisões**
+- Instância única, sem alta disponibilidade. O backup do banco é manual (`pg_dump`, README do Terraform), e um `terraform destroy` apaga o banco.
+- O `sslip.io` é um serviço de terceiros: se ele cair, o nome deixa de resolver. Para usar um domínio próprio, basta mudar `dominio_da_api` e rodar o apply.
+- Os testes de carga continuam medidos no ambiente local (seção 5). A VPS tem bem menos memória.
+
+**Próximo passo**
+- Assinar o feed `.ics` no Google Calendar pelo endereço público. Depois, Javadoc, revisão do Swagger e o Relatório Técnico (29/11).

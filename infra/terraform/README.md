@@ -32,7 +32,8 @@ Internet ──443──▶ caddy (HTTPS Let's Encrypt) ──▶ agendabeleza-a
 3. **Portas 80 e 443 livres e liberadas** no firewall da VPS (`ufw` ou `firewalld`). Nada mais pode estar usando
    essas portas na VPS.
 4. **Domínio apontando para a VPS:** um registro DNS `A` com o IP da VPS (por exemplo `api.seudominio.com.br`). O
-   Let's Encrypt não emite certificado para IP puro.
+   Let's Encrypt não emite certificado para IP puro. **Sem domínio**, use o [sslip.io](https://sslip.io): o nome
+   `143-95-161-158.sslip.io` resolve para `143.95.161.158`, sem cadastro. É o endereço do deploy atual.
 5. **Imagem publicada:** o workflow `.github/workflows/imagem.yml` publica `ghcr.io/c-nnett/agendabeleza-api:<sha>`
    a cada push. Na primeira vez, deixe o pacote público em GitHub → Packages → agendabeleza-api → Package settings.
 6. **Terraform 1.9 ou mais novo** no seu computador.
@@ -56,7 +57,7 @@ obter o certificado.
 - **Nova versão:** faça o push, espere o workflow `Imagem` e rode `terraform apply -var versao_da_imagem=<sha novo>`.
   Só o contêiner da API é recriado, com uma interrupção curta. Banco, certificados e dados ficam.
 - **Voltar atrás:** `terraform apply -var versao_da_imagem=<sha anterior>`.
-- **Logs:** `ssh usuario@ip docker logs -f agendabeleza-api`.
+- **Logs:** `ssh usuario@ip docker logs -f agendabeleza-api` (com SSH em outra porta, `ssh -p <porta> ...`).
 - **E-mails (Mailpit):** a interface só escuta no `127.0.0.1` da VPS. Rode `ssh -L 8025:127.0.0.1:8025 usuario@ip`
   e abra http://localhost:8025.
 - **Encerrar:** `terraform destroy` remove contêineres, rede e volumes. Isso inclui o banco: faça um backup antes se

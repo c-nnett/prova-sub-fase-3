@@ -39,7 +39,7 @@ Estas trocas substituem decisões da [Arquitetura do Sistema](arquitetura-do-sis
 |---|---|---|
 | OAuth2 e sincronização com a API do Google Calendar | Feed iCalendar (`.ics`) por profissional e por cliente, com URL secreta | Google Calendar e Outlook assinam o mesmo feed. Atende aos dois sem OAuth, sem tokens e sem projeto no Google Cloud |
 | Outbox com job e `SKIP LOCKED` | ~~E-mail enviado depois do commit (`@TransactionalEventListener` + `@Async`) e job `@Scheduled` para lembretes~~ **Revisto em 25/11:** outbox `notificacao` gravada na transação do agendamento e um único job `@Scheduled` para confirmações e lembretes, sem `SKIP LOCKED` (uma instância só) | A outbox não perde o e-mail se a aplicação cair depois do commit, dá novas tentativas e já guarda o e-mail do cliente, que não tem cadastro. O mesmo job serve aos lembretes da meta seguinte |
-| AWS ECS com Terraform, ALB, CloudFront e RDS | Docker Compose local e plataforma em nuvem gratuita (Render, Railway ou similar) com PostgreSQL gerenciado | O enunciado aceita "uma opção gratuita". Sem custo e sem infraestrutura como código |
+| AWS ECS com Terraform, ALB, CloudFront e RDS | Docker Compose local e ~~plataforma em nuvem gratuita (Render, Railway ou similar) com PostgreSQL gerenciado~~ **revisto em 26/11:** VPS da HostGator que o autor já tinha, com os contêineres descritos em Terraform (provider Docker por SSH) e Caddy para HTTPS | O enunciado aceita "uma opção gratuita". A VPS não tem custo adicional nem hibernação, e o Terraform mantém a infraestrutura como código |
 | Fotos em S3/MinIO | Fotos como URLs no cadastro | Tira o MinIO e o gateway de armazenamento |
 | Busca com `pg_trgm` e raio de distância | Consultas com JPA Specification: nome, cidade, bairro, serviço, nota, faixa de preço e disponibilidade | Atende ao item 5 sem extensão do banco nem geolocalização |
 | Login com JWT e papéis | Usuário identificado pelo cabeçalho `X-Usuario-Id` e papel informado no cadastro | Autenticação não é critério de avaliação. Registrar a limitação no Relatório |
@@ -171,7 +171,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 - [x] Criar `CalendarioGateway` e publicar o feed `.ics` com token secreto para profissional e cliente. Testar a assinatura no Google Calendar (1,5h). Feita em 26/11, adiantada, na branch `issue-2811`, com a migração `V1_1795709428698__criar_tabela_assinatura_calendario.sql`. Desvio: o feed foi verificado no Compose local, mas a assinatura no Google Calendar ficou para depois do deploy, porque o túnel rápido do Cloudflare falhou (429 e timeout).
 - [x] Escrever a feature BDD de agendamento (0,5h). Feita em 26/11, adiantada, na branch `issue-2811`, com 4 cenários: reserva, disputa pelo mesmo horário (201 e 409), atendimento fora da jornada (422) e cancelamento que libera o horário.
 - [x] Criar teste de concorrência com Testcontainers e um cenário Gatling de reservas simultâneas e outro de busca. Guardar os relatórios (1,5h). Feita em 26/11, adiantada, na branch `issue-2811`. O teste de concorrência já existia desde 23/11 (`ConcorrenciaAgendaTest`). O Gatling ficou num projeto separado, `agendabeleza-carga/`, com os 4 cenários da arquitetura §9.3 (disputa, reservas distintas, busca e horários livres), todos dentro das metas. Os relatórios estão em `artefatos/carga/`. Desvio: a carga foi reduzida para o Compose local (relatório, seção 5).
-- [ ] Publicar na plataforma gratuita com o perfil `production` e PostgreSQL gerenciado (2h). Em seguida, gerar a URL do feed `.ics` pelo endereço público e assiná-la no Google Calendar (pendente da 1ª meta).
+- [x] Publicar na plataforma gratuita com o perfil `production` e PostgreSQL gerenciado (2h). Em seguida, gerar a URL do feed `.ics` pelo endereço público e assiná-la no Google Calendar (pendente da 1ª meta). Feita em 26 e 27/11, adiantada, na `master`: VPS da HostGator, Terraform e Caddy, em `https://143-95-161-158.sslip.io` (arquitetura §11). Desvio: VPS no lugar da plataforma gratuita, e PostgreSQL em contêiner no lugar do gerenciado. A URL do feed já sai em HTTPS pelo endereço público, mas a assinatura no Google Calendar continua pendente.
 - [ ] Parar de incluir funcionalidades.
 
 **Pronto quando:** em N reservas simultâneas no mesmo horário, exatamente uma é aceita, e o Swagger abre pelo endereço público. **Funcionalidade 7 pronta e os itens do M3 atendidos.**
@@ -202,7 +202,7 @@ BDD fica restrito aos fluxos principais: estabelecimento, agendamento e avaliaç
 | Testes integrados e análise estática | Testcontainers, SonarCloud | 21/11 em diante |
 | Controllers, CI e BDD | Testes MockMvc, features Cucumber, execuções no Actions | 22/11 em diante |
 | Performance e carga | Teste de concorrência e relatórios Gatling | 28/11 |
-| Deploy local e em nuvem | Docker Compose, plataforma gratuita | 20/11 e 28/11 |
+| Deploy local e em nuvem | Docker Compose, VPS com Terraform e Caddy (`infra/terraform/`) | 20/11 e 27/11 |
 
 **Funcionalidades**
 

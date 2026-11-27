@@ -441,62 +441,62 @@ As simulações ficam no projeto Maven separado `agendabeleza-carga/`, com Gatli
 
 ```mermaid
 flowchart LR
-    push["Push ou PR"] --> build["Build e testes unitários"]
-    build --> it["Integração e BDD"]
-    it --> quality["JaCoCo, Checkstyle, SpotBugs, Sonar"]
-    quality --> main{"Branch main?"}
-    main -->|"não"| fim["Resultado no PR"]
-    main -->|"sim"| image["Publica imagem no ECR"]
-    image --> deploy["Atualiza serviço no ECS"]
-    deploy --> smoke["Smoke test no health check"]
+    push["Push ou PR"] --> verify["CI: mvnw verify<br/>unitários, Testcontainers, BDD, ArchUnit, JaCoCo"]
+    verify --> sonar["SonarCloud"]
+    push --> mudou{"Mudou agendabeleza-api/?"}
+    mudou -->|"sim"| image["Workflow Imagem: build do alvo production"]
+    image --> ghcr["GHCR: agendabeleza-api com a tag do commit"]
+    ghcr -.->|"terraform apply"| vps["VPS"]
 ```
 
-O GitHub Actions acessa a AWS por OIDC, sem chaves de longa duração no repositório.
+Revisto em 27/11/2026. Dois workflows:
+- `ci.yml` roda `./mvnw -B verify` e, com `SONAR_TOKEN`, a análise no SonarCloud.
+- `imagem.yml` publica a imagem `production` no GitHub Container Registry, com a tag do commit e a da branch.
+
+O deploy não é automático: o autor roda o `terraform apply` com a tag escolhida (seção 11). O pacote do GHCR é público, e a VPS baixa a imagem sem credencial.
 
 ## 11. Deploy
 
 ### 11.1 Ambientes
 
-| Item | Local (`local`) | AWS (`aws`) |
-|---|---|---|
-| Execução | Docker Compose | ECS Fargate com 2 tasks atrás de um ALB |
-| Banco | PostgreSQL em contêiner | RDS PostgreSQL |
-| Fotos | MinIO | S3 |
-| E-mail | Mailpit | Amazon SES, no modo sandbox com endereços verificados |
-| Segredos | Arquivo `.env` fora do Git | Secrets Manager |
-| Logs | Console | CloudWatch |
-| Endereço para OAuth | `http://localhost:8080` | HTTPS pelo domínio do CloudFront |
+Revisto em 27/11/2026: a nuvem é uma VPS Linux da HostGator que o autor já tinha, no lugar da AWS (planejamento §2.1).
 
-### 11.2 Topologia na AWS
+| Item | Local (`dev`) | Nuvem (`production`) |
+|---|---|---|
+| Execução | Docker Compose (`docker-compose.yml`) | Contêineres Docker na VPS, descritos em Terraform (`infra/terraform/`, provider `kreuzwerker/docker` por SSH) |
+| Imagem | Build local, alvo `development` (com JDWP) | `ghcr.io/c-nnett/agendabeleza-api:<sha>`, alvo `production` |
+| Banco | PostgreSQL 16 em contêiner | PostgreSQL 16 em contêiner, com volume próprio e sem porta pública |
+| Fotos | URLs no cadastro | URLs no cadastro |
+| E-mail | Mailpit | Mailpit interno; a interface só abre por túnel SSH |
+| HTTPS | Não | Caddy com Let's Encrypt, o único contêiner com portas públicas (80 e 443) |
+| Segredos | Arquivo `.env` fora do Git | Senha do banco gerada por `random_password`, guardada só no estado do Terraform, fora do Git |
+| Logs | Console | `docker logs agendabeleza-api`, sem cores |
+| Endereço | `http://localhost:8082` | `https://143-95-161-158.sslip.io` |
+
+### 11.2 Topologia na VPS
 
 ```mermaid
-flowchart TB
-    internet["Internet"] --> cf["CloudFront: HTTPS"]
-    cf --> alb["Application Load Balancer"]
+flowchart LR
+    internet["Internet"] -->|"80 e 443"| caddy["caddy<br/>HTTPS Let's Encrypt"]
 
-    subgraph vpc["VPC"]
-        subgraph pub["Sub-redes públicas"]
-            alb
-            ecs["ECS Fargate: 2 tasks"]
-        end
-        subgraph priv["Sub-redes privadas"]
-            rds[("RDS PostgreSQL")]
+    subgraph vps["VPS HostGator: AlmaLinux 9, Docker"]
+        subgraph rede["Rede Docker agendabeleza"]
+            caddy --> api["agendabeleza-api:8080<br/>perfil production, 768 MB"]
+            api --> pg[("postgres:5432")]
+            api --> mail["mailpit:1025"]
         end
     end
 
-    alb --> ecs
-    ecs --> rds
-    ecs --> s3["S3"]
-    ecs --> ses["Amazon SES"]
-    ecs --> google["Google Calendar API"]
-    ecr["ECR"] -.->|"imagem"| ecs
-    secrets["Secrets Manager"] -.->|"segredos"| ecs
-    ecs -.->|"logs"| cw["CloudWatch"]
+    mail -.->|"8025 só em 127.0.0.1"| tunel["Túnel SSH do autor"]
+    ghcr["GHCR"] -.->|"imagem"| api
+    tf["Terraform na máquina do autor"] -.->|"Docker por SSH"| vps
 ```
 
-- **Tasks em sub-rede pública:** recebem tráfego apenas do security group do ALB. Isso dispensa o NAT Gateway e reduz o custo.
-- **CloudFront:** o Google só aceita redirect URI em HTTPS, salvo para `localhost`, e o domínio padrão do ALB não oferece certificado próprio. O CloudFront resolve isso com um domínio HTTPS sem precisar registrar um domínio.
-- **Encerramento:** `terraform destroy` remove tudo depois da correção, para evitar custo contínuo.
+- **Sem domínio próprio:** o endereço é `143-95-161-158.sslip.io`, de um DNS público e gratuito que devolve o IP embutido no nome. Com um nome, o Let's Encrypt emite o certificado, e o HTTPS evita problemas na assinatura do feed `.ics` no Google Calendar.
+- **Por que o Caddy:** ele emite e renova o certificado sozinho, e a configuração é um template versionado (`Caddyfile.tftpl`) aplicado pelo Terraform. Em 27/11 o autor cogitou httpd e Nginx Proxy Manager. O httpd exigiria `mod_md` ou certbot. O NPM é configurado por interface fora do Git e expõe um painel na porta 81.
+- **Atrás do proxy:** com `server.forward-headers-strategy=framework`, a API monta as URLs, como a do feed `.ics`, com `https://` e o domínio público.
+- **Memória:** a VPS tem 1,7 GB e não tem swap. A API fica limitada a 768 MB (a JVM usa 75%) e usou cerca de 360 MB em repouso.
+- **Atualizar, voltar atrás e encerrar:** `terraform apply -var versao_da_imagem=<sha>` recria só a API; `terraform destroy` remove tudo, inclusive o banco (`infra/terraform/README.md`).
 
 ## 12. Decisões arquiteturais
 
@@ -509,7 +509,7 @@ flowchart TB
 | ADR-05 | Entidades de domínio separadas das JPA | Independência de framework, critério central da avaliação | Mais classes e mapeadores |
 | ADR-06 | Busca em SQL com `pg_trgm` em vez de Elasticsearch | Atende ao requisito com menos componentes | Menos recursos de relevância textual |
 | ADR-07 | `CalendarioGateway` gera um feed iCalendar que o Google Calendar e o Outlook assinam por URL secreta (revisto em 20/11 e implementado em 26/11; antes: OAuth2 com a API do Google) | Atende aos dois calendários sem OAuth, sem tokens de terceiros e sem projeto no Google Cloud; o gerador é testado sem servidor externo | A atualização da agenda assinada depende do calendário (horas no Google); quem tem a URL lê a agenda, e a revogação é emitir um token novo |
-| ADR-08 | ECS Fargate em vez de EC2 ou EKS | Citado no enunciado, sem administrar servidores | Tem custo, controlado com alerta de orçamento e `terraform destroy` |
+| ADR-08 | ~~ECS Fargate em vez de EC2 ou EKS~~ **Revisto em 27/11:** contêineres numa VPS já existente, descritos em Terraform com o provider Docker por SSH, e Caddy como proxy HTTPS | Sem custo adicional e sem a hibernação das plataformas gratuitas; o Terraform mantém a infraestrutura como código, e o Caddy emite o certificado sozinho | Uma única instância, sem alta disponibilidade; backup manual do banco (`pg_dump`); a VPS é administrada pelo autor |
 
 ## 13. Requisitos de avaliação x arquitetura
 

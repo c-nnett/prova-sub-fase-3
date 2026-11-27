@@ -1,6 +1,6 @@
 # Copie para terraform.tfvars (fora do Git) e preencha com os dados da sua VPS.
-acesso_ssh           = "usuario@203.0.113.10"
+acesso_ssh           = "usuario@203.0.113.10:22"
 chave_ssh            = "~/.ssh/id_ed25519"
-dominio_da_api       = "api.seudominio.com.br"
+dominio_da_api       = "api.seudominio.com.br" # sem domínio: "203-0-113-10.sslip.io"
 email_do_certificado = "voce@exemplo.com"
 versao_da_imagem     = "abc1234"
