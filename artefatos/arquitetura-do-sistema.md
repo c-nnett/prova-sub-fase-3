@@ -363,6 +363,10 @@ sequenceDiagram
 
 O que muda entre profissional e cliente (quem pode assinar, quais agendamentos entram e os títulos) fica na estratégia `TitularDoCalendario`, com `CalendarioDoProfissional` e `CalendarioDoCliente`. A emissão e a geração do feed são as mesmas para os dois papéis. O `CalendarioGateway` isola o formato: o núcleo monta um `FeedDoCalendario`, e o `CalendarioIcsAdapter` escreve o RFC 5545 à mão, com escape de texto, dobra de linha em 75 octetos e CRLF. O feed pede atualização a cada hora (`REFRESH-INTERVAL` e `X-PUBLISHED-TTL`). O Outlook respeita; o Google Calendar decide sozinho, em geral a cada várias horas, então uma alteração não aparece na hora na agenda assinada.
 
+Verificado em 27/11/2026 pelo endereço público: a agenda de uma profissional de demonstração foi assinada no Google Calendar, e os agendamentos apareceram com o serviço, o horário no fuso de Brasília e o endereço do salão. Como a opção "+" de "Outras agendas" nem sempre aparece, o caminho usado foi Configurações → Adicionar agenda → Do URL. Eventos pessoais, nome e foto da conta foram tarjados na imagem.
+
+![Agenda da profissional assinada no Google Calendar: "Corte feminino" em 03/12 às 11h, com o endereço do salão](evidencias-google-calendar.png)
+
 ## 7. Segurança
 
 - **Autenticação:** JWT assinado, com expiração curta. Senhas em BCrypt.

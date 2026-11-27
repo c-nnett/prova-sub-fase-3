@@ -582,8 +582,7 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
   - a URL do feed foi gerada pelo endereço público, e o autor a assinou no Google Calendar (Configurações → Adicionar agenda → Do URL);
   - os 4 eventos apareceram. **Funcionalidade 7 verificada de ponta a ponta.**
 
-**Pendente**
-- Guardar a captura de tela da agenda assinada para o Relatório Técnico.
+- Captura de tela em `artefatos/evidencias-google-calendar.png`, citada na arquitetura §6.3. Os eventos pessoais, o nome e a foto da conta foram tarjados antes do commit.
 
 **Fora do plano**
 - Antes do apply, o autor cogitou trocar o Caddy por httpd ou Nginx Proxy Manager, e decidiu manter o Caddy (arquitetura §11.2).
