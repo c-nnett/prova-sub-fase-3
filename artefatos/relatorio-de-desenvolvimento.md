@@ -605,10 +605,10 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
 
 ### 28/11 (sábado): deploy automático pelo GitHub Actions (fora do plano, feito em 27/11; `master`)
 
-**Resultado:** a preencher, depois do primeiro deploy pelo Actions
+**Resultado:** Concluído
 **Horas:** a preencher (não planejado)
 **Tarefas:** fora do plano
-**Pronto quando:** um push na `master` que muda a API chega sozinho à VPS, e o smoke test passa
+**Pronto quando:** atendido. O `Imagem` da `b8ff5da` disparou o Deploy sozinho, que esperou o CI do commit, trocou a API na VPS para `b8ff5da` e passou no smoke test. O fluxo de ponta a ponta pelo endereço público passou com 38 de 38
 
 **Realizado**
 - `infra/terraform/aplicar.sh`: roda o Terraform na VPS num contêiner (`hashicorp/terraform:1.17.2`) com o usuário de quem chama, e sem instalar nada no host. Sem versão, reaplica a que está no ar.
@@ -620,6 +620,14 @@ Um registro por dia, do mais antigo para o mais recente, seguindo o modelo abaix
   - usuário `deploy` no grupo `docker`, com uma chave ed25519 só do Actions;
   - `/opt/agendabeleza/terraform` com permissão 700;
   - estado e `terraform.tfvars` migrados da máquina do autor. O `plan` na VPS deu "No changes", e o estado local foi renomeado para `terraform.tfstate.migrado-27-11`.
+
+**Desafios e soluções**
+- **O disparo manual recusava a versão vazia.**
+  - *Como apareceu:* o primeiro `workflow_dispatch` (run 46063209542) falhou na validação, porque `printf '' | grep` não tem linha para casar.
+  - *Solução:* validar com a comparação de regex do bash. Ficou no `b8ff5da` fix, e o segundo disparo reaplicou a `f3485cf`.
+- **O Caddy foi recriado no primeiro deploy pelo Actions.**
+  - *Como apareceu:* o apply da máquina do autor enviou o `Caddyfile.tftpl` com CRLF, porque o checkout do Windows usa `core.autocrlf=true`, e o runner Linux usa LF.
+  - *Solução:* nenhuma necessária. A troca aconteceu uma vez, o certificado ficou no volume, e os deploys seguintes saem sempre do runner.
 
 **Riscos e decisões**
 - Decisões do autor: estado na própria VPS, sem backend de terceiros, e um usuário `deploy` dedicado, sem a chave de root no GitHub.
